@@ -14,10 +14,11 @@ import { InstallCard } from "@/components/native.tsx";
 import { BACKUP_REMINDER_DAYS, useLastBackup } from "@/components/DataSafety.tsx";
 import { itemImage, Photo, sectionImage } from "@/components/media.tsx";
 import { Card, CountUp, Money, SectionTitle, Spinner, cx, useMoney } from "@/components/ui.tsx";
+import { plural, t } from "@/core/i18n.ts";
 
 function greeting() {
   const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  return h < 12 ? t("Good morning") : h < 17 ? t("Good afternoon") : t("Good evening");
 }
 
 export function HomeView() {
@@ -66,30 +67,30 @@ export function HomeView() {
   if (!data) return <Spinner />;
   const needBackup =
     can("settings.manage") && data.anySales && (!lastBackup || Date.now() - Date.parse(lastBackup) > BACKUP_REMINDER_DAYS * 86400000);
-  const t = data.today;
-  const change = data.lastWeek > 0 ? Math.round(((t.revenue - data.lastWeek) / data.lastWeek) * 100) : null;
+  const td = data.today;
+  const change = data.lastWeek > 0 ? Math.round(((td.revenue - data.lastWeek) / data.lastWeek) * 100) : null;
   const weekday = formatDate(addDays(today, -7), { weekday: "short" });
-  const maxSection = Math.max(1, ...t.departments.map((d) => d.revenue));
+  const maxSection = Math.max(1, ...td.departments.map((d) => d.revenue));
   const expectedCash = data.openingFloat + data.cash.cashSales - data.cash.cashOut;
 
   return (
     <div>
-      <h1 className="sr-only">Home</h1>
+      <h1 className="sr-only">{t("Home")}</h1>
       <InstallCard />
 
       {/* Wide screens: hero on the left, the three figures stacked beside it. */}
       <div className="xl:grid xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:gap-4">
       {/* Hero carousel: Today / This week / This month. Swipe, tap a dot, or let it glide on its own. */}
       <HeroCarousel
-        greeting={`${greeting()},`}
+        greeting={t("{greeting},", { greeting: greeting() })}
         name={user.name.split(" ")[0]}
         date={formatDate(today, { weekday: "short", day: "numeric", month: "short" })}
         slides={[
           {
             key: "today",
             photo: "/img/hero-shop.webp",
-            label: "Sales today",
-            amount: t.revenue,
+            label: t("Sales today"),
+            amount: td.revenue,
             badge:
               change != null ? (
                 <span
@@ -99,25 +100,27 @@ export function HomeView() {
                   )}
                 >
                   {change >= 0 ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
-                  {change >= 0 ? "+" : ""}{change}% vs last {weekday}
+                  {t("{change}% vs last {weekday}", { change: `${change >= 0 ? "+" : ""}${change}`, weekday })}
                 </span>
               ) : null,
-            sub: `${t.sales} receipt${t.sales === 1 ? "" : "s"}${data.close ? " · day closed" : ""}`,
+            sub: data.close ? plural(td.sales, "{n} receipt · day closed", "{n} receipts · day closed") : plural(td.sales, "{n} receipt", "{n} receipts"),
           },
           {
             key: "week",
             photo: "/img/barber-cut.webp",
-            label: "This week",
+            label: t("This week"),
             amount: data.week.revenue,
-            sub: `${data.week.sales} receipt${data.week.sales === 1 ? "" : "s"} · about ${fmt(Math.round(data.week.revenue / dayCount(week.from, today)))} a day`,
+            sub: plural(data.week.sales, "{n} receipt · about {amount} a day", "{n} receipts · about {amount} a day", {
+              amount: fmt(Math.round(data.week.revenue / dayCount(week.from, today))),
+            }),
           },
           ...(data.month
             ? [{
                 key: "month",
                 photo: "/img/salon.webp",
-                label: `${formatMonth(currentMonth())} so far`,
+                label: t("{month} so far", { month: formatMonth(currentMonth()) }),
                 amount: data.month.revenue,
-                sub: `Net profit ${fmt(data.month.netProfit)}`,
+                sub: t("Net profit {amount}", { amount: fmt(data.month.netProfit) }),
                 progress: { day: Number(today.slice(8, 10)), of: daysInMonth(currentMonth()) },
               }]
             : []),
@@ -128,30 +131,30 @@ export function HomeView() {
             onClick={() => go("/sell")}
             className="press flex min-h-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-bold text-[#1f1814] shadow-[0_10px_24px_-12px_rgb(0_0_0/0.6)] sm:flex-none"
           >
-            <ShoppingBag className="size-4 text-primary" /> New sale
+            <ShoppingBag className="size-4 text-primary" /> {t("New sale")}
           </button>
           <button
             onClick={() => go("/close")}
             className="press flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-surface px-4 text-sm font-semibold text-ink ring-1 ring-line backdrop-blur hover:bg-surface-2"
           >
-            <CalendarCheck className="size-4" /> Close day
+            <CalendarCheck className="size-4" /> {t("Close day")}
           </button>
         </div>
       </HeroCarousel>
 
       {/* Figures: tap a tile to open the full screen. */}
       <div className="stagger mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:mt-0 xl:grid-cols-1 xl:grid-rows-3">
-        <Tile label="Cash in drawer" hint={data.close ? "Counted & closed" : "Expected now"} onClick={() => go("/close")}>
+        <Tile label={t("Cash in drawer")} hint={data.close ? t("Counted & closed") : t("Expected now")} onClick={() => go("/close")}>
           <CountUp value={expectedCash} format={fmt} />
         </Tile>
         {data.month ? (
           <>
-            <Tile label="This month" hint="Revenue" onClick={() => go("/reports")}>
+            <Tile label={t("This month")} hint={t("Revenue")} onClick={() => go("/reports")}>
               <CountUp value={data.month.revenue} format={fmt} />
             </Tile>
             <Tile
-              label="Net profit"
-              hint="After pay & expenses"
+              label={t("Net profit")}
+              hint={t("After pay & expenses")}
               tone={data.month.netProfit >= 0 ? "positive" : "negative"}
               onClick={() => go("/reports")}
               className="col-span-2 sm:col-span-1"
@@ -160,8 +163,8 @@ export function HomeView() {
             </Tile>
           </>
         ) : (
-          <Tile label="Receipts today" hint="Completed sales" onClick={() => go("/sales")}>
-            {t.sales}
+          <Tile label={t("Receipts today")} hint={t("Completed sales")} onClick={() => go("/sales")}>
+            {td.sales}
           </Tile>
         )}
       </div>
@@ -177,10 +180,14 @@ export function HomeView() {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block font-semibold">
-              {formatMonth(data.lastClose.month)} is closed · {data.lastClose.days} days
+              {plural(data.lastClose.days, "{month} is closed · {n} day", "{month} is closed · {n} days", { month: formatMonth(data.lastClose.month) })}
             </span>
             <span className="block truncate text-xs text-ink-3">
-              Revenue {fmt(data.lastClose.revenue)} · net profit {fmt(data.lastClose.net_profit)} · staff pay {fmt(data.lastClose.staff_pay)}
+              {t("Revenue {revenue} · net profit {profit} · staff pay {pay}", {
+                revenue: fmt(data.lastClose.revenue),
+                profit: fmt(data.lastClose.net_profit),
+                pay: fmt(data.lastClose.staff_pay),
+              })}
             </span>
           </span>
           <ArrowRight className="size-4 shrink-0 text-ink-3" />
@@ -193,30 +200,34 @@ export function HomeView() {
             <Nudge
               icon={DatabaseBackup}
               tone="accent"
-              title={lastBackup ? `No backup for ${Math.floor((Date.now() - Date.parse(lastBackup)) / 86400000)} days` : "Take your first backup"}
+              title={
+                lastBackup
+                  ? plural(Math.floor((Date.now() - Date.parse(lastBackup)) / 86400000), "No backup for {n} day", "No backup for {n} days")
+                  : t("Take your first backup")
+              }
               onClick={() => go("/backup")}
             >
-              Save a copy to Google Drive or email. It takes a few seconds.
+              {t("Save a copy to Google Drive or email. It takes a few seconds.")}
             </Nudge>
           )}
           {data.unclosed && (
             <Nudge
               icon={AlertTriangle}
               tone="warning"
-              title={`${formatDate(data.unclosed, { weekday: "long", day: "numeric", month: "short" })} was not closed`}
+              title={t("{date} was not closed", { date: formatDate(data.unclosed, { weekday: "long", day: "numeric", month: "short" }) })}
               onClick={() => go("/close", { date: data.unclosed! })}
             >
-              Count that day&apos;s cash so the drawer is checked.
+              {t("Count that day's cash so the drawer is checked.")}
             </Nudge>
           )}
           {data.lowStock.length > 0 && (
             <Nudge
               icon={PackageOpen}
               tone="warning"
-              title={`Running low on ${data.lowStock.length} item${data.lowStock.length === 1 ? "" : "s"}`}
+              title={plural(data.lowStock.length, "Running low on {n} item", "Running low on {n} items")}
               onClick={() => go("/catalog")}
             >
-              {data.lowStock.slice(0, 4).map((p) => `${p.name} (${p.on_hand})`).join(", ")}
+              {data.lowStock.slice(0, 4).map((p) => `${t(p.name)} (${p.on_hand})`).join(", ")}
             </Nudge>
           )}
         </div>
@@ -224,18 +235,18 @@ export function HomeView() {
 
       {/* Quick actions */}
       <div className="chip-scroll flat-lg stagger -mx-4 mt-6 flex scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:auto-cols-fr lg:grid-flow-col lg:overflow-visible lg:px-0">
-        <Action icon={ShoppingBag} label="Sell" onClick={() => go("/sell")} primary />
-        {can("expense.create") && <Action icon={Banknote} label="Expense" onClick={() => go("/expenses", { add: "1" })} />}
-        <Action icon={ReceiptText} label="Receipts" onClick={() => go("/sales")} />
-        {can("payroll.view") && <Action icon={HandCoins} label="Earnings" onClick={() => go("/earnings")} />}
-        <Action icon={Contact} label="Clients" onClick={() => go("/clients")} />
-        <Action icon={CalendarCheck} label="Close day" onClick={() => go("/close")} />
+        <Action icon={ShoppingBag} label={t("Sell")} onClick={() => go("/sell")} primary />
+        {can("expense.create") && <Action icon={Banknote} label={t("Expense")} onClick={() => go("/expenses", { add: "1" })} />}
+        <Action icon={ReceiptText} label={t("Receipts")} onClick={() => go("/sales")} />
+        {can("payroll.view") && <Action icon={HandCoins} label={t("Earnings")} onClick={() => go("/earnings")} />}
+        <Action icon={Contact} label={t("Clients")} onClick={() => go("/clients")} />
+        <Action icon={CalendarCheck} label={t("Close day")} onClick={() => go("/close")} />
       </div>
 
       {/* Best sellers this month: a swipeable shelf of photo cards. */}
       {data.top.length > 0 && (
         <section className="reveal">
-          <SectionTitle action={can("reports.daily") && <SeeAll onClick={() => go("/reports")}>See all</SeeAll>}>Best sellers this month</SectionTitle>
+          <SectionTitle action={can("reports.daily") && <SeeAll onClick={() => go("/reports")}>{t("See all")}</SeeAll>}>{t("Best sellers this month")}</SectionTitle>
           <div className="snap-x-row -mx-4 flex gap-3 overflow-x-auto scroll-px-4 px-4 pb-2">
             {data.top.map((it, i) => (
               <button
@@ -243,13 +254,13 @@ export function HomeView() {
                 onClick={() => go("/sell")}
                 className="press group relative w-[46%] max-w-[230px] shrink-0 cursor-pointer overflow-hidden rounded-[22px] text-left ring-1 ring-line sm:w-[210px]"
               >
-                <Photo src={itemImage(it.name, it.department ?? "")} alt="" className="aspect-[3/4] w-full" imgClassName="transition-transform duration-700 group-hover:scale-[1.06]" />
+                <Photo src={itemImage(it.name, it.department ?? "")} alt="" className="aspect-[3/4] w-full lg:aspect-[4/5]" imgClassName="transition-transform duration-700 group-hover:scale-[1.06]" />
                 <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,transparent_35%,rgb(14_10_8/0.88))]" />
                 <span className="absolute left-2.5 top-2.5 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-[#1c1612] backdrop-blur">#{i + 1}</span>
                 <span className="absolute inset-x-0 bottom-0 p-3 text-white">
-                  <span className="block truncate text-[15px] font-bold leading-tight">{it.name}</span>
+                  <span className="block truncate text-[15px] font-bold leading-tight">{t(it.name)}</span>
                   <span className="mt-0.5 flex items-center justify-between gap-2 text-xs text-white/80">
-                    <span>{it.qty} sold</span>
+                    <span>{t("{n} sold", { n: it.qty })}</span>
                     <Money value={it.revenue} className="font-bold text-white" />
                   </span>
                 </span>
@@ -261,13 +272,13 @@ export function HomeView() {
 
       <div className="reveal grid gap-x-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section>
-          <SectionTitle action={can("reports.daily") && <SeeAll onClick={() => go("/reports")}>See report</SeeAll>}>Today by section</SectionTitle>
+          <SectionTitle action={can("reports.daily") && <SeeAll onClick={() => go("/reports")}>{t("See report")}</SeeAll>}>{t("Today by section")}</SectionTitle>
           {/* Photo cards: name and takings over a dark fade, like a shop window. */}
           <ul className="stagger grid grid-cols-2 gap-3 xl:grid-cols-3">
-            {t.departments.map((d, i) => {
+            {td.departments.map((d, i) => {
               const top = d.revenue > 0 && d.revenue === maxSection;
               return (
-                <li key={d.id} className={cx(t.departments.length % 2 === 1 && i === 0 && "col-span-2")}>
+                <li key={d.id} className={cx(td.departments.length % 2 === 1 && i === 0 && "col-span-2")}>
                   <button
                     onClick={() => go("/sell")}
                     className="press group relative block w-full cursor-pointer overflow-hidden rounded-[22px] text-left ring-1 ring-line"
@@ -275,7 +286,7 @@ export function HomeView() {
                     <Photo
                       src={sectionImage(d.name, d.kind)}
                       alt=""
-                      className={cx("w-full", t.departments.length % 2 === 1 && i === 0 ? "aspect-[16/9] lg:aspect-[21/8] xl:aspect-[8/3]" : "aspect-[4/5] sm:aspect-[4/3]")}
+                      className={cx("w-full", td.departments.length % 2 === 1 && i === 0 ? "aspect-[16/9] lg:aspect-[21/8] xl:aspect-[31/10]" : "aspect-[4/5] sm:aspect-[4/3] xl:aspect-[3/2]")}
                       imgClassName="transition-transform duration-700 ease-[var(--ease-out)] group-hover:scale-[1.05]"
                     />
                     <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,transparent_38%,rgb(14_10_8/0.35)_58%,rgb(14_10_8/0.88)_100%)]" />
@@ -285,11 +296,11 @@ export function HomeView() {
                         top ? "bg-primary text-white" : d.items ? "bg-white/90 text-[#1c1612]" : "bg-black/40 text-white/85",
                       )}
                     >
-                      {top ? "Top today" : d.items ? `${d.items} sold` : "No sales yet"}
+                      {top ? t("Top today") : d.items ? t("{n} sold", { n: d.items }) : t("No sales yet")}
                     </span>
                     <span className="absolute inset-x-0 bottom-0 p-3.5 text-white">
                       <Money value={d.revenue} className="block text-[17px] font-extrabold leading-tight tracking-tight" />
-                      <span className="mt-0.5 block truncate text-[12px] font-semibold uppercase tracking-[0.08em] text-white/80">{d.name}</span>
+                      <span className="mt-0.5 block truncate text-[12px] font-semibold uppercase tracking-[0.08em] text-white/80">{t(d.name)}</span>
                       <span className="mt-2 block h-[3px] overflow-hidden rounded-full bg-white/20" aria-hidden>
                         <span
                           className="block h-full origin-left animate-[grow_900ms_var(--ease-out)_both] rounded-full bg-primary-2"
@@ -303,29 +314,31 @@ export function HomeView() {
             })}
           </ul>
         </section>
+        <div>
         <section>
-          <SectionTitle action={can("payroll.view") && <SeeAll onClick={() => go("/earnings")}>Earnings</SeeAll>}>Today by staff</SectionTitle>
+          <SectionTitle action={can("payroll.view") && <SeeAll onClick={() => go("/earnings")}>{t("Earnings")}</SeeAll>}>{t("Today by staff")}</SectionTitle>
           <Card className="animate-rise p-5">
             {data.staff.length === 0 ? (
-              <p className="py-4 text-center text-sm text-ink-3">No services recorded yet today.</p>
+              <p className="py-4 text-center text-sm text-ink-3">{t("No services recorded yet today.")}</p>
             ) : (
-              <Bars rows={data.staff.map((s) => ({ label: s.name, value: s.revenue, sub: `${s.services} service${s.services === 1 ? "" : "s"}` }))} />
+              <Bars rows={data.staff.map((s) => ({ label: s.name, value: s.revenue, sub: plural(s.services, "{n} service", "{n} services") }))} />
             )}
           </Card>
         </section>
-      </div>
 
       {data.month && (
         <section className="reveal">
-          <SectionTitle action={<SeeAll onClick={() => go("/reports")}>Full report</SeeAll>}>Profit by section this month</SectionTitle>
+          <SectionTitle action={<SeeAll onClick={() => go("/reports")}>{t("Full report")}</SeeAll>}>{t("Profit by section this month")}</SectionTitle>
           <Card className="animate-rise p-5">
-            <Bars signed rows={data.month.departments.filter((d) => d.revenue || d.profit).map((d) => ({ label: d.name, value: d.profit }))} />
+            <Bars signed rows={data.month.departments.filter((d) => d.revenue || d.profit).map((d) => ({ label: t(d.name), value: d.profit }))} />
             {data.month.departments.every((d) => !d.revenue && !d.profit) && (
-              <p className="py-4 text-center text-sm text-ink-3">No sales this month yet.</p>
+              <p className="py-4 text-center text-sm text-ink-3">{t("No sales this month yet.")}</p>
             )}
           </Card>
         </section>
       )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -404,9 +417,9 @@ function HeroCarousel({ greeting: hello, name, date, slides, children }: { greet
         <p className="rounded-full bg-surface px-3 py-1.5 text-xs font-semibold text-ink-2 ring-1 ring-line backdrop-blur">{date}</p>
       </div>
 
-      <div ref={track} className="snap-x-row mt-6 flex overflow-x-auto xl:mt-auto xl:pt-8" aria-roledescription="carousel" aria-label="Takings">
+      <div ref={track} className="snap-x-row mt-6 flex overflow-x-auto xl:mt-auto xl:pt-8" aria-roledescription="carousel" aria-label={t("Takings")}>
         {slides.map((s, i) => (
-          <div key={s.key} className="w-full shrink-0 px-5 sm:px-7 xl:px-9" role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${slides.length}: ${s.label}`}>
+          <div key={s.key} className="w-full shrink-0 px-5 sm:px-7 xl:px-9" role="group" aria-roledescription="slide" aria-label={t("{i} of {total}: {label}", { i: i + 1, total: slides.length, label: s.label })}>
             <p className="text-sm font-medium text-ink-2">{s.label}</p>
             <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
               <CountUp value={s.amount} format={fmt} className="font-display text-[34px] font-bold leading-none tracking-[-0.04em] sm:text-[44px] xl:text-[56px]" />
@@ -418,7 +431,7 @@ function HeroCarousel({ greeting: hello, name, date, slides, children }: { greet
                 <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
                   <span className="block h-full rounded-full bg-linear-to-r from-primary-2 to-primary" style={{ width: `${(s.progress.day / s.progress.of) * 100}%` }} />
                 </span>
-                <span className="shrink-0 text-xs font-semibold text-ink-2">Day {s.progress.day} of {s.progress.of}</span>
+                <span className="shrink-0 text-xs font-semibold text-ink-2">{t("Day {day} of {total}", { day: s.progress.day, total: s.progress.of })}</span>
               </div>
             )}
           </div>
@@ -427,7 +440,7 @@ function HeroCarousel({ greeting: hello, name, date, slides, children }: { greet
 
       <div className="px-5 sm:px-7 xl:px-9">
         {slides.length > 1 && (
-          <div className="mt-4 flex items-center gap-1.5" role="tablist" aria-label="Choose a period">
+          <div className="mt-4 flex items-center gap-1.5" role="tablist" aria-label={t("Choose a period")}>
             {slides.map((s, i) => (
               <button
                 key={s.key}

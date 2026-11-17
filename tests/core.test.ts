@@ -608,3 +608,83 @@ test("multi-level sort: first rule decides, ties go to the next, blanks always l
   assert.equal(ids([{ id: "customer", dir: "desc" }]), "daceb"); // Zed, Mary, Ali, Ali (original order), blank name last even when descending
   assert.equal(ids([]), "abcde"); // no rules: original order
 });
+
+// ---------- French ----------
+
+test("French: every sentence the app shows in French has a translation", async () => {
+  const { readdirSync, readFileSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { FR } = await import("../src/i18n/fr/index.ts");
+  const { PAYMENT_LABEL, ADJUSTMENT_LABEL, EXPENSE_CATEGORIES } = await import("../src/core/commands.ts");
+  const { ROLE_LABEL } = await import("../src/core/permissions.ts");
+  const { SUGGESTIONS } = await import("../src/core/seed.ts");
+
+  const files: string[] = [];
+  const walk = (d: string) => {
+    for (const f of readdirSync(d)) {
+      const p = join(d, f);
+      if (statSync(p).isDirectory()) { if (f !== "i18n") walk(p); }
+      else if (/\.(tsx?|ts)$/.test(f)) files.push(p);
+    }
+  };
+  walk("src");
+
+  const keys = new Set<string>();
+  const lit = String.raw`"((?:[^"\\]|\\.)*)"`;
+  for (const f of files) {
+    // Ignore comments (they may mention t("…") as an example).
+    const src = readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    for (const m of src.matchAll(new RegExp(String.raw`\bt[k]?\(\s*${lit}`, "g"))) keys.add(JSON.parse(`"${m[1]}"`));
+    for (const m of src.matchAll(new RegExp(String.raw`\bplural\(\s*[^,]+,\s*${lit}\s*,\s*${lit}`, "g"))) {
+      keys.add(JSON.parse(`"${m[1]}"`));
+      keys.add(JSON.parse(`"${m[2]}"`));
+    }
+  }
+  // Text picked at run time from lists (menu, labels, stored values).
+  const shell = readFileSync("src/views/Shell.tsx", "utf8");
+  for (const m of shell.matchAll(/(?:label|description): "([^"]+)"/g)) keys.add(m[1]);
+  for (const v of [...Object.values(PAYMENT_LABEL), ...Object.values(ADJUSTMENT_LABEL), ...Object.values(ROLE_LABEL), ...EXPENSE_CATEGORIES]) keys.add(v);
+  for (const list of Object.values(SUGGESTIONS)) for (const v of list) keys.add(v);
+
+  const missing = [...keys].filter((k) => FR[k] === undefined).sort();
+  assert.deepEqual(missing, [], `No French for:\n${missing.map((k) => `  ${JSON.stringify(k)}`).join("\n")}`);
+  assert.ok(keys.size > 50, "found the app's sentences");
+});
+
+test("Cameroon phone numbers: every way of writing one number is the same client", async () => {
+  const { normalizePhone } = await import("../src/core/commands.ts");
+  for (const v of ["+237 6 77 12 34 56", "00237677123456", "677 12 34 56", "677-123-456", "237677123456"]) {
+    assert.equal(normalizePhone(v), "677123456", v);
+  }
+  assert.equal(normalizePhone("+254 712 345 678"), "+254712345678"); // other countries unchanged
+  assert.equal(normalizePhone("123"), null);
+});
+
+test("demo shop, Cameroon edition (FCFA, French names): splits, months and payroll match the ledger", async () => {
+  const store = await memoryStore();
+  for (const d of DEFAULT_DEPARTMENTS) await upsert(store, "departments", { ...d, active: 1 }, 1);
+  await upsert(store, "settings", { id: "currency", value: "XAF" }, 1);
+  const today = "2026-11-17";
+  const { commands, ledger } = demoShop(today, 2026, { edition: "cameroon" });
+  for (const c of commands) await exec(store, owner, c.type, c.payload as never, c.at);
+
+  const names = await store.all<{ name: string }>("SELECT name FROM services ORDER BY name");
+  assert.ok(names.some((n) => n.name === "Coupe") && names.some((n) => n.name === "Manucure gel"), "services named in French");
+  const staff = await store.all<{ name: string }>("SELECT name FROM staff");
+  assert.ok(staff.some((s) => s.name === "Brenda Ngono"), "Cameroonian staff names");
+  const cut = await store.get<{ price: number }>("SELECT price FROM services WHERE id = 'demo-sv-cut'");
+  assert.equal(cut?.price, 1500, "a haircut costs 1 500 FCFA");
+
+  for (const [id, want] of Object.entries(ledger.sales)) {
+    const split = await saleSplit(store, id);
+    assert.equal(split.total, want.total, `total of ${id}`);
+    assert.deepEqual(Object.fromEntries(split.perStaff.map((p) => [p.staff_id, p.amount])), want.cuts, `cuts of ${id}`);
+  }
+  for (const [month, want] of Object.entries(ledger.months)) {
+    const { from, to } = monthRange(month);
+    const s = await periodSummary(store, from, to < today ? to : today);
+    assert.equal(s.revenue, want.revenue, `${month} revenue`);
+    assert.equal(s.departments.reduce((n, d) => n + d.staffShare, 0), want.staffShare, `${month} staff share`);
+  }
+  for (const row of await payroll(store, "2026-10")) assert.equal(row.balance, 0, `${row.name} fully paid for October`);
+});

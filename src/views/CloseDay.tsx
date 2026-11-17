@@ -7,10 +7,11 @@ import { setParams } from "@/client/router.ts";
 import { PAYMENT_LABEL } from "@/core/commands.ts";
 import { formatDate, formatDateTime, toBusinessDate } from "@/core/dates.ts";
 import { formatMoney } from "@/core/money.ts";
+import { t } from "@/core/i18n.ts";
 import { cashFigures, type CashFigures } from "@/core/reports.ts";
 import type { Settings } from "@/core/settings.ts";
 import { PageSize, printContent } from "@/components/print.tsx";
-import { Button, Card, Field, Money, MoneyInput, PageHeader, Spinner, Textarea, cx } from "@/components/ui.tsx";
+import { Button, Card, DateInput, Field, Money, MoneyInput, PageHeader, Spinner, Textarea, cx } from "@/components/ui.tsx";
 
 interface CloseRow {
   business_date: string;
@@ -71,56 +72,51 @@ export function CloseDayView({ params }: { params: URLSearchParams }) {
         counted,
         note,
       },
-      "Day closed",
+      t("Day closed"),
     );
     setBusy(false);
     setRecount(false);
   };
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto max-w-xl lg:max-w-none">
       <PageHeader
-        title="Close the day"
-        subtitle={date === today ? "Today" : formatDate(date, { weekday: "long", day: "numeric", month: "long" })}
+        title={t("Close the day")}
+        subtitle={date === today ? t("Today") : formatDate(date, { weekday: "long", day: "numeric", month: "long" })}
         actions={
           can("cash.reclose") && (
-            <input
-              type="date"
-              aria-label="Choose date"
-              value={date}
-              max={today}
-              onChange={(e) => e.target.value && setParams({ date: e.target.value })}
-              className="h-11 rounded-xl border border-line-strong bg-surface px-2 text-sm"
-            />
+            <DateInput look="compact" label={t("Choose date")} value={date} max={today} onChange={(v) => setParams({ date: v })} />
           )
         }
       />
 
       {showForm ? (
         <Card className="p-5">
-          <ol className="space-y-5">
+          <ol className="space-y-5 lg:grid lg:grid-cols-3 lg:gap-5 lg:space-y-0">
             <li>
-              <Field label="1. Cash in the drawer when the day started" htmlFor="flt" hint="The float left for change.">
+              <Field label={t("1. Cash in the drawer when the day started")} htmlFor="flt" hint={t("The float left for change.")}>
                 <MoneyInput id="flt" value={float} onChange={setFloat} />
               </Field>
             </li>
             <li>
-              <Field label="2. Count all the cash in the drawer now" htmlFor="cnt" hint="Count notes and coins. Don't include mobile money or card.">
+              <Field label={t("2. Count all the cash in the drawer now")} htmlFor="cnt" hint={t("Count notes and coins. Don't include mobile money or card.")}>
                 <MoneyInput id="cnt" value={counted} onChange={setCounted} autoFocus />
               </Field>
             </li>
             <li>
-              <Field label="3. Notes (optional)" htmlFor="nt">
-                <Textarea id="nt" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything the owner should know" />
+              <Field label={t("3. Notes (optional)")} htmlFor="nt">
+                <Textarea id="nt" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Anything the owner should know")} />
               </Field>
             </li>
           </ol>
-          <Button className="mt-5" block size="lg" disabled={counted == null} loading={busy} onClick={submit}>
-            Close day & see result
-          </Button>
-          {recount && (
-            <Button className="mt-2" variant="ghost" block onClick={() => setRecount(false)}>Cancel</Button>
-          )}
+          <div className="lg:mt-5 lg:flex lg:flex-row-reverse lg:items-center lg:gap-3">
+            <Button className="mt-5 lg:mt-0 lg:w-auto lg:min-w-72" block size="lg" disabled={counted == null} loading={busy} onClick={submit}>
+              {t("Close day & see result")}
+            </Button>
+            {recount && (
+              <Button className="mt-2 lg:mt-0 lg:w-auto" variant="ghost" block onClick={() => setRecount(false)}>{t("Cancel")}</Button>
+            )}
+          </div>
         </Card>
       ) : (
         <CloseResult close={data.close!} figures={data.figures} onRecount={can("cash.reclose") ? () => setRecount(true) : undefined} settings={settings} />
@@ -135,26 +131,26 @@ function CloseResult({
   const ok = close.variance === 0;
   const short = close.variance < 0;
   return (
-    <>
-      <Card className={cx("flex items-center gap-3 p-4", ok ? "border-positive/40" : "border-negative/40")}>
+    <div className="lg:grid lg:grid-cols-2 lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-6">
+      <Card className={cx("flex items-center gap-3 p-4 lg:col-start-1 lg:row-start-1", ok ? "border-positive/40" : "border-negative/40")}>
         {ok ? <CheckCircle2 className="size-8 shrink-0 text-positive" /> : <TriangleAlert className="size-8 shrink-0 text-negative" />}
         <div>
           <p className="text-lg font-bold">
-            {ok ? "Cash matches" : short ? <>Short by <Money value={-close.variance} /></> : <>Over by <Money value={close.variance} /></>}
+            {ok ? t("Cash matches") : short ? <>{t("Short by")} <Money value={-close.variance} /></> : <>{t("Over by")} <Money value={close.variance} /></>}
           </p>
           <p className="text-sm text-ink-3">
-            Closed {formatDateTime(close.closed_at)}{close.closed_by_name ? ` by ${close.closed_by_name}` : ""}
+            {close.closed_by_name ? t("Closed {date} by {name}", { date: formatDateTime(close.closed_at), name: close.closed_by_name }) : t("Closed {date}", { date: formatDateTime(close.closed_at) })}
           </p>
         </div>
       </Card>
-      <Card className="mt-3 p-4">
+      <Card className="mt-3 p-4 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0">
         <CashTable close={close} />
         {figures.otherMethods.length > 0 && (
           <div className="mt-4 border-t border-line pt-3">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">Not in the drawer — check against statements</p>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">{t("Not in the drawer — check against statements")}</p>
             {figures.otherMethods.map((m) => (
               <div key={m.method} className="flex justify-between py-1 text-sm">
-                <span>{PAYMENT_LABEL[m.method] ?? m.method}</span>
+                <span>{t(PAYMENT_LABEL[m.method] ?? m.method)}</span>
                 <Money value={m.amount} className="font-semibold" />
               </div>
             ))}
@@ -162,13 +158,13 @@ function CloseResult({
         )}
         {close.note && <p className="mt-3 rounded-xl bg-surface-2 p-3 text-sm">{close.note}</p>}
       </Card>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex gap-2 lg:col-start-1 lg:row-start-2">
         <Button variant="secondary" className="flex-1" onClick={() => printContent(<ClosePrint close={close} figures={figures} settings={settings} />)}>
-          <Printer className="size-4" /> Print
+          <Printer className="size-4" /> {t("Print")}
         </Button>
-        {onRecount && <Button variant="secondary" className="flex-1" onClick={onRecount}>Count again</Button>}
+        {onRecount && <Button variant="secondary" className="flex-1" onClick={onRecount}>{t("Count again")}</Button>}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -181,12 +177,12 @@ function CashTable({ close }: { close: CloseRow }) {
   );
   return (
     <div>
-      {row("Opening float", close.opening_float)}
-      {row("+ Cash sales", close.cash_sales)}
-      {row("− Cash paid out (expenses, advances, stock)", -close.cash_out)}
-      {row("Expected in drawer", close.expected, true)}
-      {row("Counted", close.counted)}
-      {row("Difference", close.variance, true)}
+      {row(t("Opening float"), close.opening_float)}
+      {row(`+ ${t("Cash sales")}`, close.cash_sales)}
+      {row(`− ${t("Cash paid out (expenses, advances, stock)")}`, -close.cash_out)}
+      {row(t("Expected in drawer"), close.expected, true)}
+      {row(t("Counted"), close.counted)}
+      {row(t("Difference"), close.variance, true)}
     </div>
   );
 }
@@ -197,26 +193,26 @@ function ClosePrint({ close, figures, settings }: { close: CloseRow; figures: Ca
     <div className="receipt mx-auto" data-width={settings.paper_width}>
       <PageSize size={settings.paper_width} />
       <div className="text-center font-bold">{settings.shop_name}</div>
-      <div className="text-center">Day close · {formatDate(close.business_date)}</div>
+      <div className="text-center">{t("Day close · {date}", { date: formatDate(close.business_date) })}</div>
       <div className="my-1.5 border-t border-dashed border-black" />
       {[
-        ["Sales count", String(figures.salesCount)],
-        ["Opening float", m(close.opening_float)],
-        ["Cash sales", m(close.cash_sales)],
-        ["Expenses from drawer", m(figures.tillExpenses)],
-        ["Staff money from drawer", m(figures.tillStaffMoney)],
-        ["Stock bought from drawer", m(figures.tillStockPurchases)],
-        ["Expected", m(close.expected)],
-        ["Counted", m(close.counted)],
-        ["Difference", m(close.variance)],
-        ...figures.otherMethods.map((o) => [PAYMENT_LABEL[o.method] ?? o.method, m(o.amount)]),
+        [t("Sales count"), String(figures.salesCount)],
+        [t("Opening float"), m(close.opening_float)],
+        [t("Cash sales"), m(close.cash_sales)],
+        [t("Expenses from drawer"), m(figures.tillExpenses)],
+        [t("Staff money from drawer"), m(figures.tillStaffMoney)],
+        [t("Stock bought from drawer"), m(figures.tillStockPurchases)],
+        [t("Expected"), m(close.expected)],
+        [t("Counted"), m(close.counted)],
+        [t("Difference"), m(close.variance)],
+        ...figures.otherMethods.map((o) => [t(PAYMENT_LABEL[o.method] ?? o.method), m(o.amount)]),
       ].map(([k, v]) => (
         <div key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></div>
       ))}
       <div className="my-1.5 border-t border-dashed border-black" />
-      <div>Closed by {close.closed_by_name ?? "—"}, {formatDateTime(close.closed_at)}</div>
-      {close.note && <div>Note: {close.note}</div>}
-      <div className="mt-6">Signature: ________________</div>
+      <div>{t("Closed by {name}, {date}", { name: close.closed_by_name ?? "—", date: formatDateTime(close.closed_at) })}</div>
+      {close.note && <div>{t("Note: {note}", { note: close.note })}</div>}
+      <div className="mt-6">{t("Signature:")} ________________</div>
     </div>
   );
 }

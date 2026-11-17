@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AppWindow, ArchiveRestore, ChevronRight, FileUp, Scissors, ShieldCheck, WifiOff } from "lucide-react";
+import { AppWindow, ArchiveRestore, ChevronRight, FileUp, ShieldCheck, WifiOff } from "lucide-react";
 import type { Actor } from "@/core/commands.ts";
 import { isValidPin, verifyPin } from "@/core/pin.ts";
 import { ROLE_LABEL, type Role } from "@/core/permissions.ts";
@@ -9,8 +9,11 @@ import { AppProvider } from "@/client/app-context.tsx";
 import { Engine } from "@/client/engine.ts";
 import { backupTables, inspectBackup, openLocalStore, setMeta, type BackupSummary, type LocalStore } from "@/client/localdb.ts";
 import { formatDate } from "@/core/dates.ts";
-import { Button, Card, Field, Input, PinPad, Select, Signature, Spinner, cx } from "@/components/ui.tsx";
+import { Button, Card, Field, Input, LogoMark, PinPad, Select, Signature, Spinner, cx } from "@/components/ui.tsx";
 import { Shell } from "./Shell.tsx";
+import { LanguageSwitch, useLang } from "@/components/i18n.tsx";
+import { applyStoredTheme } from "@/components/theme.tsx";
+import { getLang, locale, plural, t, tk, tMessage } from "@/core/i18n.ts";
 
 type Phase =
   | { name: "loading" }
@@ -27,6 +30,15 @@ const SESSION_KEY = "bms_session";
 const TAB_CHANNEL = "bms-tab";
 
 export default function Boot() {
+  // Re-render the whole app when the language changes.
+  useLang();
+  // The server pre-renders in English but a phone may be in French: show a
+  // wordless splash until mounted, so the first paint never disagrees.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+    applyStoredTheme(); // match the phone's status bar to this device's Light/Dark choice
+  }, []);
   const [store, setStore] = useState<LocalStore | null>(null);
   const [engine, setEngine] = useState<Engine | null>(null);
   const [phase, setPhase] = useState<Phase>({ name: "loading" });
@@ -62,7 +74,7 @@ export default function Boot() {
     } catch {
       setPhase({
         name: "error",
-        message: "This device is not connected to the shop yet, and the server can't be reached. Connect to the internet once to set it up.",
+        message: tk("This device is not connected to the shop yet, and the server can't be reached. Connect to the internet once to set it up."),
       });
     }
   }, [startEngine]);
@@ -136,7 +148,7 @@ export default function Boot() {
         }
       } catch (e) {
         console.error(e);
-        setPhase({ name: "error", message: "Could not open the app's offline storage on this browser." });
+        setPhase({ name: "error", message: tk("Could not open the app's offline storage on this browser.") });
       }
     })();
     return () => {
@@ -171,9 +183,10 @@ export default function Boot() {
 
   switch (phase.name) {
     case "loading":
+      if (!mounted) return <Splash />;
       return (
         <Centered>
-          <Spinner label="Opening" />
+          <Spinner label={t("Opening")} />
         </Centered>
       );
     case "error":
@@ -181,9 +194,9 @@ export default function Boot() {
         <Centered>
           <Card className="max-w-md p-6 text-center">
             <WifiOff className="mx-auto mb-3 size-8 text-ink-3" />
-            <p className="text-ink-2">{phase.message}</p>
+            <p className="text-ink-2">{t(phase.message)}</p>
             <Button className="mt-5" onClick={() => location.reload()}>
-              Try again
+              {t("Try again")}
             </Button>
           </Card>
         </Centered>
@@ -228,12 +241,18 @@ function Centered({ children, shopName }: { children: React.ReactNode; shopName?
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(214_96_44/0.85)_0%,rgb(120_48_20/0.5)_30%,rgb(18_13_10/0.94)_64%,#120d0a_100%)] md:bg-[radial-gradient(120%_80%_at_100%_0%,rgb(160_62_26/0.55),transparent_60%),linear-gradient(#120d0a,#120d0a)]" />
         <div className="absolute -left-24 -top-24 size-[26rem] animate-glow rounded-full bg-[radial-gradient(circle,rgb(255_140_80/0.42),transparent_65%)] blur-2xl md:left-auto md:right-[-8rem]" />
         <div className="absolute -bottom-40 right-[-6rem] size-[30rem] animate-glow rounded-full bg-[radial-gradient(circle,rgb(207_74_31/0.28),transparent_65%)] blur-3xl [animation-delay:-4s]" />
+        <div className="ndop absolute inset-0 opacity-[0.035]" />
         <div className="grain absolute inset-0" />
       </div>
 
       <Showcase shopName={shopName} />
 
-      <div className="relative flex min-h-dvh flex-col items-center justify-center px-5 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-[max(env(safe-area-inset-top),1.5rem)] sm:px-8">
+      {/* FR | EN, top-right of the stage, clear of the notch; the column below is padded so it never covers the clock or brand. */}
+      <div className="absolute right-4 top-[max(env(safe-area-inset-top),1rem)] z-20">
+        <LanguageSwitch />
+      </div>
+
+      <div className="relative flex min-h-dvh flex-col items-center justify-center px-5 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-[calc(max(env(safe-area-inset-top),1rem)+3.25rem)] sm:px-8 md:py-6">
         <div className="animate-rise flex w-full flex-col items-center">{children}</div>
       </div>
     </main>
@@ -272,19 +291,30 @@ function OpenElsewhere({ moved }: { moved: boolean }) {
             <AppWindow className="size-7" />
           </span>
         </div>
-        <p className="font-serif text-2xl italic text-ink-2">{moved ? "Moved to another tab" : "Already open"}</p>
+        <p className="font-serif text-2xl italic text-ink-2">{moved ? t("Moved to another tab") : t("Already open")}</p>
         <h1 className="mt-1 text-[30px] font-extrabold leading-tight tracking-[-0.03em]">
-          {moved ? "You're using the shop in another tab" : "The shop is open in another tab"}
+          {moved ? t("You're using the shop in another tab") : t("The shop is open in another tab")}
         </h1>
         <p className="mt-3 text-[15px] text-ink-2">
-          It can only be open in one tab at a time, so no sale is ever overwritten. Your work is saved — switch here and carry on.
+          {t("It can only be open in one tab at a time, so no sale is ever overwritten. Your work is saved — switch here and carry on.")}
         </p>
         <Button size="lg" block className="mt-8" loading={busy} onClick={useHere}>
-          Use here
+          {t("Use here")}
         </Button>
-        <p className="mt-3 text-xs text-ink-3">The other tab will save and step aside.</p>
+        <p className="mt-3 text-xs text-ink-3">{t("The other tab will save and step aside.")}</p>
       </div>
     </Centered>
+  );
+}
+
+/** First paint before the language is known: the dark stage and the logo, no words. */
+function Splash() {
+  return (
+    <main aria-busy="true" className="flex min-h-dvh items-center justify-center bg-[#120d0a]">
+      <span className="flex size-16 animate-pulse items-center justify-center rounded-[22px] bg-[#1b1410] ring-1 ring-white/10 shadow-[0_14px_32px_-12px_rgb(236_106_56/0.7)]">
+        <LogoMark className="size-10" />
+      </span>
+    </main>
   );
 }
 
@@ -306,9 +336,9 @@ function useNow() {
   return now;
 }
 
-function timeOfDay(d: Date | null) {
+function welcome(d: Date | null) {
   const h = d?.getHours() ?? 9;
-  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  return h < 12 ? t("Good morning, welcome to") : h < 17 ? t("Good afternoon, welcome to") : t("Good evening, welcome to");
 }
 
 /**
@@ -317,8 +347,8 @@ function timeOfDay(d: Date | null) {
  */
 function Showcase({ shopName }: { shopName?: string | null }) {
   const now = useNow();
-  const time = now ? now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "··:··";
-  const date = now ? now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }) : " ";
+  const time = now ? now.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) : "··:··";
+  const date = now ? now.toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" }) : " ";
   return (
     <aside aria-hidden className="relative m-3 hidden overflow-hidden rounded-[36px] ring-1 ring-white/10 md:block">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -327,13 +357,14 @@ function Showcase({ shopName }: { shopName?: string | null }) {
       <div className="absolute inset-0 bg-[linear-gradient(160deg,rgb(232_110_52/0.55)_0%,rgb(120_46_18/0.35)_38%,rgb(16_11_8/0.92)_78%)] mix-blend-multiply" />
       <div className="absolute inset-0 bg-[radial-gradient(90%_70%_at_30%_100%,rgb(0_0_0/0.75),transparent_70%)]" />
       <div className="rings absolute inset-0 animate-float-slow opacity-70" />
+      <div className="ndop absolute inset-0 opacity-[0.06]" />
       <div className="grain absolute inset-0" />
 
       <div className="relative flex h-full flex-col justify-between p-10 xl:p-14">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="flex size-11 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur-md">
-              <Scissors className="size-5" />
+              <LogoMark className="size-7" />
             </span>
             <span className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.3em] text-white/75">Barbershop Manager</span>
           </div>
@@ -342,28 +373,32 @@ function Showcase({ shopName }: { shopName?: string | null }) {
               <span className="absolute inset-0 animate-ping rounded-full bg-[#7be2a9] opacity-60" />
               <span className="relative size-2 rounded-full bg-[#7be2a9]" />
             </span>
-            Ready for today
+            {t("Ready for today")}
           </span>
         </div>
 
         {/* Floating glass badges */}
-        <div className="pointer-events-none absolute right-10 top-[30%] flex flex-col items-end gap-3 xl:right-14">
-          <Badge3 icon={<ShieldCheck className="size-4" />} className="animate-float">Everyone signs in with their own PIN</Badge3>
-          <Badge3 icon={<WifiOff className="size-4" />} className="mr-10 animate-float [animation-delay:-2.5s]">Keeps working with no internet</Badge3>
-          <Badge3 icon={<ArchiveRestore className="size-4" />} className="mr-3 animate-float [animation-delay:-5s]">Every sale backed up</Badge3>
+        <div className="pointer-events-none absolute right-10 top-[30%] flex flex-col items-end gap-3 xl:right-14 [@media(max-height:720px)]:hidden">
+          <Badge3 icon={<ShieldCheck className="size-4" />} className="animate-float">{t("Everyone signs in with their own PIN")}</Badge3>
+          <Badge3 icon={<WifiOff className="size-4" />} className="mr-10 animate-float [animation-delay:-2.5s]">{t("Keeps working with no internet")}</Badge3>
+          <Badge3 icon={<ArchiveRestore className="size-4" />} className="mr-3 animate-float [animation-delay:-5s]">{t("Every sale backed up")}</Badge3>
         </div>
 
         <div>
-          <p className="num text-[clamp(88px,9vw,148px)] font-extrabold leading-[0.85] tracking-[-0.06em] text-white">{time}</p>
+          <p className="num text-[clamp(72px,min(9vw,17dvh),148px)] font-extrabold leading-[0.85] tracking-[-0.06em] text-white">{time}</p>
           <p className="mt-4 text-lg font-medium text-white/75">{date}</p>
-          <div className="mt-10 border-t border-white/15 pt-6">
-            <p className="font-serif text-2xl italic text-white/80">{timeOfDay(now)}, welcome to</p>
+          <div className="mt-[clamp(16px,4dvh,40px)]">
+            {/* Toghu embroidery band in place of a plain rule. */}
+            <div aria-hidden className="toghu-band mb-[clamp(12px,2.5dvh,24px)] opacity-90" />
+            <p className="font-serif text-2xl italic text-white/80">{welcome(now)}</p>
             <p className="mt-1 text-[clamp(40px,4.4vw,68px)] font-extrabold leading-none tracking-[-0.04em] text-white">
-              {shopName || "your shop"}
+              {shopName || t("your shop")}
             </p>
           </div>
         </div>
       </div>
+      {/* A comet of light that travels round the card's edge. */}
+      <div className="orbit-border" />
     </aside>
   );
 }
@@ -381,12 +416,12 @@ function Badge3({ icon, children, className }: { icon: React.ReactNode; children
 function PhoneClock() {
   const now = useNow();
   return (
-    <div className="mb-6 text-center md:hidden" aria-hidden>
-      <p className="num text-[64px] font-extrabold leading-none tracking-[-0.05em] text-white">
-        {now ? now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "··:··"}
+    <div className="mb-[clamp(10px,2.5dvh,24px)] text-center md:hidden" aria-hidden>
+      <p className="num text-[clamp(44px,7.5dvh,64px)] font-extrabold leading-none tracking-[-0.05em] text-white">
+        {now ? now.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" }) : "··:··"}
       </p>
       <p className="mt-1 text-sm font-medium text-white/70">
-        {now ? now.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }) : " "}
+        {now ? now.toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" }) : " "}
       </p>
     </div>
   );
@@ -394,12 +429,12 @@ function PhoneClock() {
 
 function Brand({ shopName }: { shopName?: string | null }) {
   return (
-    <div className="mb-8 flex flex-col items-center text-center">
-      <div className="relative mb-4 flex size-20 items-center justify-center">
+    <div className="mb-[clamp(12px,3dvh,32px)] flex flex-col items-center text-center">
+      <div className="relative mb-[clamp(4px,1.4dvh,16px)] flex size-[clamp(56px,8.5dvh,80px)] items-center justify-center [@media(max-height:700px)]:hidden">
         <span aria-hidden className="absolute inset-0 animate-float-slow rounded-full border border-white/15" />
         <span aria-hidden className="absolute inset-2.5 animate-float rounded-full border border-white/20 [animation-delay:-2s]" />
-        <span className="relative flex size-12 items-center justify-center rounded-2xl bg-primary text-on-primary shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_12px_28px_-10px_rgb(236_106_56/0.9)]">
-          <Scissors className="size-6" />
+        <span className="relative flex size-12 items-center justify-center rounded-2xl bg-[#1b1410] ring-1 ring-white/15 shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_12px_28px_-10px_rgb(236_106_56/0.8)]">
+          <LogoMark className="size-8" />
         </span>
       </div>
       <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-ink-2">Barbershop Manager</p>
@@ -439,7 +474,7 @@ function Login({ store, onSignIn }: { store: LocalStore; onSignIn: (u: Actor) =>
     async (pin: string) => {
       if (!user) return;
       if (Date.now() < lockedUntil) {
-        setError("Too many wrong PINs. Wait 30 seconds.");
+        setError(t("Too many wrong PINs. Wait 30 seconds."));
         return;
       }
       setBusy(true);
@@ -454,8 +489,8 @@ function Login({ store, onSignIn }: { store: LocalStore; onSignIn: (u: Actor) =>
         if (n >= 5) {
           setLockedUntil(Date.now() + 30_000);
           setFailures(0);
-          setError("Too many wrong PINs. Wait 30 seconds.");
-        } else setError("Wrong PIN. Try again.");
+          setError(t("Too many wrong PINs. Wait 30 seconds."));
+        } else setError(t("Wrong PIN. Try again."));
       }
     },
     [user, failures, lockedUntil, onSignIn],
@@ -466,22 +501,24 @@ function Login({ store, onSignIn }: { store: LocalStore; onSignIn: (u: Actor) =>
   return (
     <Centered shopName={shopName}>
       <div className="w-full max-w-sm">
-        <PhoneClock />
+        <div className={user ? "[@media(max-height:760px)]:hidden" : undefined}>
+          <PhoneClock />
+        </div>
         {/* Once a person is chosen their avatar says who it is; dropping the logo keeps the PIN pad on screen. */}
         {!user && (
           <div className="md:hidden">
             <Brand shopName={shopName} />
           </div>
         )}
-        <div className="mb-8 hidden md:block">
-          <p className="font-serif text-3xl italic text-ink-2">Welcome back</p>
-          <h1 className="mt-1 text-[40px] font-extrabold leading-none tracking-[-0.04em]">Sign in</h1>
+        <div className={cx("mb-[clamp(12px,3.5dvh,32px)] hidden text-center md:block", user && "[@media(max-height:760px)]:!hidden")}>
+          <p className="font-serif text-[28px] italic leading-none text-accent">{t("Welcome back")}</p>
+          <h1 className="mt-2.5 text-balance font-display text-[32px] font-bold uppercase leading-[1.05] tracking-[-0.01em]">{t("Sign in")}</h1>
         </div>
         {!user ? (
           <>
-            <h2 className="mb-3 text-center text-sm font-semibold text-ink-3 md:text-left">Who is signing in?</h2>
+            <h2 className="mb-3 text-center text-sm font-semibold text-ink-3 md:text-left">{t("Who is signing in?")}</h2>
             {users.length === 0 ? (
-              <p className="text-center text-sm text-ink-3">Downloading the shop's data… make sure this device is online.</p>
+              <p className="text-center text-sm text-ink-3">{t("Downloading the shop's data… make sure this device is online.")}</p>
             ) : (
               <div className="stagger grid gap-2.5">
                 {users.map((u) => (
@@ -496,7 +533,7 @@ function Login({ store, onSignIn }: { store: LocalStore; onSignIn: (u: Actor) =>
                     <Avatar name={u.name} />
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold">{u.name}</div>
-                      <div className="text-sm text-ink-3">{ROLE_LABEL[u.role]}</div>
+                      <div className="text-sm text-ink-3">{t(ROLE_LABEL[u.role])}</div>
                     </div>
                     <ChevronRight className="size-5 text-ink-3" />
                   </button>
@@ -506,21 +543,21 @@ function Login({ store, onSignIn }: { store: LocalStore; onSignIn: (u: Actor) =>
           </>
         ) : (
           <div key={user.id} className="animate-rise">
-            <div className="mb-7 flex flex-col items-center">
+            <div className="mb-[clamp(10px,2.6dvh,28px)] flex flex-col items-center">
               <span className="relative">
                 <span aria-hidden className="absolute -inset-3 animate-glow rounded-[34px] bg-[radial-gradient(circle,rgb(236_106_56/0.55),transparent_70%)] blur-md" />
                 <span className="relative block"><Avatar name={user.name} large /></span>
               </span>
-              <p className="mt-4 font-serif text-xl italic text-ink-2">Hello,</p>
-              <p className="text-2xl font-extrabold tracking-[-0.03em]">{user.name}</p>
-              <button className="mt-1.5 min-h-11 cursor-pointer rounded-full px-3 text-sm font-semibold text-accent transition-colors hover:bg-surface" onClick={() => setSelected(null)}>
-                Not you?
+              <p className="mt-[clamp(8px,1.8dvh,16px)] font-serif text-[22px] italic leading-none text-ink-2">{t("Hello,")}</p>
+              <p className="mt-1.5 max-w-full truncate font-display text-[26px] font-bold leading-tight tracking-[-0.01em]">{user.name}</p>
+              <button className="mt-1 min-h-11 cursor-pointer rounded-full px-3.5 text-[13px] font-semibold tracking-[0.01em] text-ink-3 underline decoration-line-strong underline-offset-4 transition-colors hover:text-accent hover:decoration-accent" onClick={() => setSelected(null)}>
+                {t("Not you?")}
               </button>
             </div>
             <PinPad onSubmit={submit} busy={busy} error={error} />
           </div>
         )}
-        <div className="mt-12">
+        <div className="mt-[clamp(14px,4dvh,48px)]">
           <Signature />
         </div>
       </div>
@@ -540,8 +577,8 @@ export function Avatar({ name, large, small }: { name: string; large?: boolean; 
     <span
       aria-hidden
       className={cx(
-        "flex shrink-0 items-center justify-center bg-linear-to-br from-[#f59a63] to-[#c2461d] font-bold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3)]",
-        large ? "size-20 rounded-[26px] text-2xl" : small ? "size-9 rounded-full text-xs" : "size-11 rounded-2xl text-sm",
+        "flex shrink-0 items-center justify-center bg-linear-to-br from-[#f59a63] to-[#c2461d] font-display font-bold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3)]",
+        large ? "size-[clamp(60px,9dvh,80px)] rounded-[clamp(20px,3dvh,26px)] text-2xl" : small ? "size-9 rounded-full text-xs" : "size-11 rounded-2xl text-sm",
       )}
     >
       {initials}
@@ -551,11 +588,12 @@ export function Avatar({ name, large, small }: { name: string; large?: boolean; 
 
 // ---------- first run ----------
 
+// Cameroon first (XAF, the default); names are translated where they're shown.
 const CURRENCIES = [
-  ["KES", "Kenyan shilling"], ["UGX", "Ugandan shilling"], ["TZS", "Tanzanian shilling"], ["RWF", "Rwandan franc"],
-  ["NGN", "Nigerian naira"], ["GHS", "Ghanaian cedi"], ["ZAR", "South African rand"], ["ZMW", "Zambian kwacha"],
-  ["XOF", "West African CFA franc"], ["XAF", "Central African CFA franc"], ["ETB", "Ethiopian birr"],
-  ["USD", "US dollar"], ["EUR", "Euro"], ["GBP", "British pound"], ["INR", "Indian rupee"],
+  ["XAF", tk("CFA franc (CEMAC)")], ["XOF", tk("CFA franc (UEMOA)")],
+  ["NGN", tk("Nigerian naira")], ["GHS", tk("Ghanaian cedi")], ["KES", tk("Kenyan shilling")], ["UGX", tk("Ugandan shilling")],
+  ["TZS", tk("Tanzanian shilling")], ["RWF", tk("Rwandan franc")], ["ZAR", tk("South African rand")], ["ZMW", tk("Zambian kwacha")],
+  ["ETB", tk("Ethiopian birr")], ["EUR", tk("Euro")], ["USD", tk("US dollar")], ["GBP", tk("British pound")], ["INR", tk("Indian rupee")],
 ];
 
 function Setup({ onDone, store }: { onDone: (deviceId: string, code: string, userId: string) => Promise<void>; store: LocalStore | null }) {
@@ -567,7 +605,7 @@ function Setup({ onDone, store }: { onDone: (deviceId: string, code: string, use
 function NewShop({ onDone, onRestore }: { onDone: (deviceId: string, code: string, userId: string) => Promise<void>; onRestore: () => void }) {
   const [shopName, setShopName] = useState("");
   const [ownerName, setOwnerName] = useState("");
-  const [currency, setCurrency] = useState("KES");
+  const [currency, setCurrency] = useState("XAF");
   const [pin, setPin] = useState("");
   const [pin2, setPin2] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -576,21 +614,21 @@ function NewShop({ onDone, onRestore }: { onDone: (deviceId: string, code: strin
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!shopName.trim() || !ownerName.trim()) return setError("Enter the shop name and your name.");
-    if (!isValidPin(pin)) return setError("Your PIN must be 4 to 6 digits.");
-    if (pin !== pin2) return setError("The two PINs don't match.");
+    if (!shopName.trim() || !ownerName.trim()) return setError(t("Enter the shop name and your name."));
+    if (!isValidPin(pin)) return setError(t("Your PIN must be 4 to 6 digits."));
+    if (pin !== pin2) return setError(t("The two PINs don't match."));
     setBusy(true);
     try {
       const res = await fetch("/api/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shopName, ownerName, currency, pin, deviceName: deviceName() }),
+        body: JSON.stringify({ shopName, ownerName, currency, pin, deviceName: deviceName(), lang: getLang() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Setup failed.");
+      if (!res.ok) throw new Error(data.error ? tMessage(data.error) : t("Setup failed."));
       await onDone(data.deviceId, data.deviceCode, data.userId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Setup failed.");
+      setError(err instanceof Error ? err.message : t("Setup failed."));
       setBusy(false);
     }
   };
@@ -600,40 +638,40 @@ function NewShop({ onDone, onRestore }: { onDone: (deviceId: string, code: strin
       <div className="w-full max-w-md">
         <Brand />
         <Card className="p-6 backdrop-blur-xl">
-          <h1 className="text-[26px] font-extrabold tracking-[-0.03em]">Set up your shop</h1>
-          <p className="mt-1 text-sm text-ink-2">You&apos;ll be the owner. You can add your manager, cashier and staff next.</p>
+          <h1 className="text-[26px] font-extrabold tracking-[-0.03em]">{t("Set up your shop")}</h1>
+          <p className="mt-1 text-sm text-ink-2">{t("You'll be the owner. You can add your manager, cashier and staff next.")}</p>
           <form onSubmit={submit} className="mt-5 space-y-4">
-            <Field label="Shop name" htmlFor="shop">
+            <Field label={t("Shop name")} htmlFor="shop">
               <Input id="shop" value={shopName} onChange={(e) => setShopName(e.target.value)} autoComplete="organization" />
             </Field>
-            <Field label="Your name" htmlFor="owner">
+            <Field label={t("Your name")} htmlFor="owner">
               <Input id="owner" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} autoComplete="name" />
             </Field>
-            <Field label="Currency" htmlFor="currency" hint="All amounts in the app use this currency.">
+            <Field label={t("Currency")} htmlFor="currency" hint={t("All amounts in the app use this currency.")}>
               <Select id="currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
                 {CURRENCIES.map(([code, name]) => (
                   <option key={code} value={code}>
-                    {code} — {name}
+                    {code} — {t(name)}
                   </option>
                 ))}
               </Select>
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Owner PIN" htmlFor="pin" hint="4–6 digits">
+              <Field label={t("Owner PIN")} htmlFor="pin" hint={t("4–6 digits")}>
                 <Input id="pin" type="password" inputMode="numeric" autoComplete="new-password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} />
               </Field>
-              <Field label="Repeat PIN" htmlFor="pin2">
+              <Field label={t("Repeat PIN")} htmlFor="pin2">
                 <Input id="pin2" type="password" inputMode="numeric" autoComplete="new-password" value={pin2} onChange={(e) => setPin2(e.target.value.replace(/\D/g, "").slice(0, 6))} />
               </Field>
             </div>
             {error && <p className="text-sm text-negative" role="alert">{error}</p>}
             <Button type="submit" size="lg" block loading={busy}>
-              Create shop
+              {t("Create shop")}
             </Button>
           </form>
         </Card>
         <button onClick={onRestore} className="press mt-4 flex min-h-[52px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-surface text-sm font-semibold text-ink-2 ring-1 ring-line backdrop-blur-md hover:bg-surface-2">
-          <ArchiveRestore className="size-4" /> Restore a shop from a backup file
+          <ArchiveRestore className="size-4" /> {t("Restore a shop from a backup file")}
         </button>
         <div className="mt-10"><Signature /></div>
       </div>
@@ -658,10 +696,10 @@ function Register({
         body: JSON.stringify({ userId, pin, deviceName: deviceName() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not connect this device.");
+      if (!res.ok) throw new Error(data.error ? tMessage(data.error) : t("Could not connect this device."));
       await onDone(data.deviceId, data.deviceCode, userId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not connect this device.");
+      setError(err instanceof Error ? err.message : t("Could not connect this device."));
       setBusy(false);
     }
   };
@@ -670,22 +708,22 @@ function Register({
     <Centered shopName={shopName}>
       <div className="w-full max-w-md">
         <Brand shopName={shopName} />
-        <Card className="mb-6 flex gap-3 p-4 backdrop-blur-xl">
+        <Card className="mb-[clamp(10px,2.2dvh,24px)] flex gap-3 p-4 backdrop-blur-xl [@media(max-height:700px)]:p-3">
           <ShieldCheck className="size-5 shrink-0 text-accent" />
-          <p className="text-sm text-ink-2">
-            Connect this phone or computer to the shop. After this it works offline too, and everyone signs in with their own PIN.
+          <p className="text-sm text-ink-2 [@media(max-height:700px)]:text-xs">
+            {t("Connect this phone or computer to the shop. After this it works offline too, and everyone signs in with their own PIN.")}
           </p>
         </Card>
-        <Field label="Your name" htmlFor="who">
+        <Field label={t("Your name")} htmlFor="who">
           <Select id="who" value={userId} onChange={(e) => setUserId(e.target.value)}>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.name} — {ROLE_LABEL[u.role]}
+                {u.name} — {t(ROLE_LABEL[u.role])}
               </option>
             ))}
           </Select>
         </Field>
-        <div className="mt-6">
+        <div className="mt-[clamp(10px,2.2dvh,24px)]">
           <PinPad onSubmit={submit} busy={busy} error={error} />
         </div>
       </div>
@@ -720,18 +758,18 @@ function Restore({ store, onDone, onCancel }: { store: LocalStore; onDone: (devi
     try {
       const bytes = new Uint8Array(await f.arrayBuffer());
       const info = await inspectBackup(bytes);
-      if (!info.owners.length) throw new Error("This backup has no owner account, so it can't be restored.");
+      if (!info.owners.length) throw new Error(t("This backup has no owner account, so it can't be restored."));
       setFile({ name: f.name, bytes, info });
       setOwnerId(info.owners[0].id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not read that file.");
+      setError(e instanceof Error ? tMessage(e.message) : t("Could not read that file."));
     }
   };
 
   const post = async (body: unknown) => {
     const res = await fetch("/api/restore", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error ?? `Restore failed (${res.status}).`);
+    if (!res.ok) throw new Error(data.error ? tMessage(data.error) : t("Restore failed ({status}).", { status: res.status }));
     return data;
   };
 
@@ -739,13 +777,13 @@ function Restore({ store, onDone, onCancel }: { store: LocalStore; onDone: (devi
     if (!file) return;
     setError(null);
     const owner = file.info.owners.find((o) => o.id === ownerId);
-    if (!owner || !(await verifyPin(pin, owner.pin_salt, owner.pin_hash))) return setError("That PIN doesn't match the owner in this backup.");
+    if (!owner || !(await verifyPin(pin, owner.pin_salt, owner.pin_hash))) return setError(t("That PIN doesn't match the owner in this backup."));
     try {
-      setProgress("Reading the backup…");
+      setProgress(t("Reading the backup…"));
       const tables = await backupTables(file.bytes);
       const { token } = await post({ step: "begin" });
-      const names = (Object.keys(tables) as (keyof typeof tables)[]).filter((t) => t !== "users");
-      const total = names.reduce((n, t) => n + tables[t].length, 0);
+      const names = (Object.keys(tables) as (keyof typeof tables)[]).filter((name) => name !== "users");
+      const total = names.reduce((n, name) => n + tables[name].length, 0);
       let done = 0;
       for (const table of names) {
         const rows = tables[table];
@@ -753,20 +791,20 @@ function Restore({ store, onDone, onCancel }: { store: LocalStore; onDone: (devi
           const chunk = rows.slice(i, i + 400);
           await post({ step: "rows", token, table, rows: chunk });
           done += chunk.length;
-          setProgress(`Uploading records… ${Math.round((done / Math.max(total, 1)) * 100)}%`);
+          setProgress(t("Uploading records… {pct}%", { pct: Math.round((done / Math.max(total, 1)) * 100) }));
         }
       }
-      setProgress("Checking the owner PIN…");
+      setProgress(t("Checking the owner PIN…"));
       await post({ step: "finish", token, users: tables.users, ownerId, pin, label: file.name });
 
-      setProgress("Connecting this device…");
+      setProgress(t("Connecting this device…"));
       const res = await fetch("/api/devices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: ownerId, pin, deviceName: deviceName() }),
       });
       const dev = await res.json();
-      if (!res.ok) throw new Error(dev.error ?? "Could not connect this device.");
+      if (!res.ok) throw new Error(dev.error ? tMessage(dev.error) : t("Could not connect this device."));
 
       // Changes that never reached the old server go out again as normal changes.
       if (file.info.unsent.length) {
@@ -777,11 +815,11 @@ function Restore({ store, onDone, onCancel }: { store: LocalStore; onDone: (devi
         });
         await store.flush();
       }
-      setProgress("Downloading the shop to this device…");
+      setProgress(t("Downloading the shop to this device…"));
       await onDone(dev.deviceId, dev.deviceCode, ownerId);
     } catch (e) {
       setProgress(null);
-      setError(e instanceof Error ? e.message : "Restore failed.");
+      setError(e instanceof Error ? e.message : t("Restore failed."));
     }
   };
 
@@ -790,40 +828,52 @@ function Restore({ store, onDone, onCancel }: { store: LocalStore; onDone: (devi
       <div className="w-full max-w-md">
         <Brand />
         <Card className="p-6 backdrop-blur-xl">
-          <h1 className="text-[26px] font-extrabold tracking-[-0.03em]">Restore from a backup</h1>
+          <h1 className="text-[26px] font-extrabold tracking-[-0.03em]">{t("Restore from a backup")}</h1>
           <p className="mt-1 text-sm text-ink-3">
-            Use this on a new or empty server to bring the whole shop back: sales, staff, pay, expenses, clients and logins.
-            Choose the newest backup you have.
+            {t("Use this on a new or empty server to bring the whole shop back: sales, staff, pay, expenses, clients and logins. Choose the newest backup you have.")}
           </p>
 
           <label className="mt-5 flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-line-strong px-4 text-sm font-semibold text-ink-2 hover:bg-surface-2">
             <FileUp className="size-5" />
-            {file ? file.name : "Choose backup file (.sqlite)"}
+            {file ? file.name : t("Choose backup file (.sqlite)")}
             <input type="file" accept=".sqlite,.db,.sqlite3,application/octet-stream,application/vnd.sqlite3" className="sr-only" onChange={(e) => choose(e.target.files?.[0])} />
           </label>
 
           {file && (
             <div className="mt-4 space-y-4">
               <div className="rounded-xl bg-surface-2 p-3 text-sm">
-                <div className="font-semibold">{file.info.shopName ?? "Shop"}</div>
+                <div className="font-semibold">{file.info.shopName ?? t("Shop")}</div>
                 <div className="text-ink-3">
-                  {file.info.sales} sale{file.info.sales === 1 ? "" : "s"}
-                  {file.info.lastSaleDate && `, latest ${formatDate(file.info.lastSaleDate)}`} · {file.info.staff} staff · {file.info.currency}
+                  {file.info.lastSaleDate
+                    ? plural(file.info.sales, "{n} sale, latest {date}", "{n} sales, latest {date}", { date: formatDate(file.info.lastSaleDate) })
+                    : plural(file.info.sales, "{n} sale", "{n} sales")}
+                  {" · "}{plural(file.info.staff, "{n} staff member", "{n} staff members")} · {file.info.currency}
                 </div>
                 {file.info.unsent.length > 0 && (
                   <div className="mt-1 text-warning">
-                    Includes {file.info.unsent.length} change{file.info.unsent.length === 1 ? "" : "s"} that never reached the old server. They will be sent too.
+                    {plural(
+                      file.info.unsent.length,
+                      "Includes {n} change that never reached the old server. It will be sent too.",
+                      "Includes {n} changes that never reached the old server. They will be sent too.",
+                    )}
                   </div>
                 )}
               </div>
               {file.info.owners.length > 1 && (
-                <Field label="Owner" htmlFor="rowner">
+                <Field label={t("Owner")} htmlFor="rowner">
                   <Select id="rowner" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
                     {file.info.owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                   </Select>
                 </Field>
               )}
-              <Field label={`PIN of ${file.info.owners.find((o) => o.id === ownerId)?.name ?? "the owner"}`} htmlFor="rpin" hint="The owner's PIN from when this backup was made.">
+              <Field
+                label={(() => {
+                  const name = file.info.owners.find((o) => o.id === ownerId)?.name;
+                  return name ? t("PIN of {name}", { name }) : t("Owner PIN");
+                })()}
+                htmlFor="rpin"
+                hint={t("The owner's PIN from when this backup was made.")}
+              >
                 <Input id="rpin" type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} />
               </Field>
             </div>
@@ -833,8 +883,8 @@ function Restore({ store, onDone, onCancel }: { store: LocalStore; onDone: (devi
           {error && <p className="mt-4 text-sm text-negative" role="alert">{error}</p>}
 
           <div className="mt-5 grid grid-cols-2 gap-2">
-            <Button variant="secondary" size="lg" onClick={onCancel} disabled={!!progress}>Back</Button>
-            <Button size="lg" disabled={!file || pin.length < 4} loading={!!progress} onClick={run}>Restore shop</Button>
+            <Button variant="secondary" size="lg" onClick={onCancel} disabled={!!progress}>{t("Back")}</Button>
+            <Button size="lg" disabled={!file || pin.length < 4} loading={!!progress} onClick={run}>{t("Restore shop")}</Button>
           </div>
         </Card>
       </div>

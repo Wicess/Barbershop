@@ -39,10 +39,12 @@
   color-scheme: light;
 }
 
+/* Dark theme. Applies when the device is in dark mode (unless this device chose
+   Light in Settings), or always when it chose Dark. */
 @media (prefers-color-scheme: dark) {
   /* Dark: near-black with only a breath of warmth, hairline edges instead of
      brown fills, so cards separate crisply and the orange reads as the accent. */
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0b0a09;
     --surface: #141210;
     --surface-2: #1d1a17;
@@ -74,6 +76,37 @@
     color-scheme: dark;
   }
 }
+:root[data-theme="dark"] {
+    --bg: #0b0a09;
+    --surface: #141210;
+    --surface-2: #1d1a17;
+    --ink: #f7f2ed;
+    --ink-2: #cdc4bc;
+    --ink-3: #958b83;
+    --line: rgb(255 255 255 / 0.08);
+    --line-strong: rgb(255 255 255 / 0.16);
+    --primary: #f0703f;
+    --primary-2: #ff8f5c;
+    --on-primary: #1c0d06;
+    --accent: #f58a5c;
+    --accent-soft: #3a2117;
+    --panel: #1a1714;
+    --panel-2: #26211c;
+    --on-panel: #f7efe8;
+    --positive: #4fd18b;
+    --positive-soft: #10281b;
+    --negative: #f4796f;
+    --negative-soft: #341714;
+    --warning: #f5b544;
+    --warning-soft: #2f2410;
+    --focus: #f0703f;
+    --scrim: rgb(0 0 0 / 0.62);
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -14px rgb(0 0 0 / 0.6);
+    --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.35), 0 24px 56px -20px rgb(0 0 0 / 0.75);
+    --shadow-primary: 0 10px 24px -10px rgb(240 112 63 / 0.5);
+    color-scheme: dark;
+  }
 
 /* A dark espresso area inside a light screen (sign-in, hero cards). Redefines the
    tokens so every component placed inside it reads correctly on dark. */
@@ -131,6 +164,8 @@
   --animate-fade-in: fade-in 160ms ease-out;
   --animate-page-in: page-in 200ms cubic-bezier(0.23, 1, 0.32, 1);
   --animate-pop: pop 260ms cubic-bezier(0.23, 1, 0.32, 1);
+  --animate-pop-down: pop-down 180ms cubic-bezier(0.23, 1, 0.32, 1);
+  --animate-pop-up: pop-up 180ms cubic-bezier(0.23, 1, 0.32, 1);
   --animate-toast-in: toast-in 280ms cubic-bezier(0.23, 1, 0.32, 1);
   --animate-rise: rise 520ms cubic-bezier(0.23, 1, 0.32, 1) both;
   --animate-float: float 7s ease-in-out infinite;
@@ -221,8 +256,71 @@
 .snap-x-row::-webkit-scrollbar { display: none; }
 .snap-x-row > * { scroll-snap-align: center; scroll-snap-stop: always; }
 
+/* Cameroonian textile accents.
+   Toghu: the North-West region's black velvet with bright geometric embroidery,
+   drawn as a stitched band (dashes read as thread). Ndop: the Grassfields' royal
+   resist-dyed cloth, used only as a whisper-faint texture. */
+.toghu-band {
+  height: 14px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M0 .7H28M0 13.3H28' stroke='%23E8B04B' stroke-width='1' stroke-dasharray='2 1.4'/%3E%3Cpath d='M0 7 7 2.2 14 7 21 11.8 28 7' fill='none' stroke='%23E2622D' stroke-width='1.7' stroke-linejoin='round' stroke-dasharray='2.4 1.1'/%3E%3Cpath d='M21 2.4 23 4.4 21 6.4 19 4.4Z' fill='%23E8B04B'/%3E%3Cpath d='M7 7.6 9 9.6 7 11.6 5 9.6Z' fill='%23F2E8DC'/%3E%3C/svg%3E") repeat-x left center / 28px 14px;
+}
+.ndop {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56' fill='none' stroke='%23F2E8DC' stroke-width='1'%3E%3Cpath d='M28 6 50 28 28 50 6 28Z'/%3E%3Cpath d='M28 15 41 28 28 41 15 28Z' stroke-dasharray='2 2.5'/%3E%3Ccircle cx='28' cy='28' r='3.2'/%3E%3Cpath d='M0 6A6 6 0 0 0 6 0M50 0A6 6 0 0 0 56 6M56 50A6 6 0 0 0 50 56M6 56A6 6 0 0 0 0 50'/%3E%3C/svg%3E") repeat center / 56px 56px;
+}
+
+/* Dropdown and calendar panels open from their button. */
+@keyframes pop-down {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+}
+@keyframes pop-up {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+}
+
+/* A line of light running round a rounded card (sign-in showcase). Pure CSS: no timers. */
+@property --orbit {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.orbit-border {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.orbit-border::before,
+.orbit-border::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* Bright head, fading orange tail, the rest of the edge left dark. */
+  background: conic-gradient(
+    from var(--orbit),
+    transparent 0deg 190deg,
+    rgb(236 106 56 / 0.25) 250deg,
+    #ec6a38 320deg,
+    #ffb48a 345deg,
+    #fff3ea 357deg,
+    transparent 360deg
+  );
+  /* Keep only the border ring: the padding box minus the content box. */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  animation: orbit 7s linear infinite;
+}
+.orbit-border::before { padding: 2.5px; }
+/* A wider, faint band behind the line reads as its glow. */
+.orbit-border::after { padding: 7px; opacity: 0.28; }
+@keyframes orbit {
+  to { --orbit: 360deg; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reveal, .shine::before { animation: none !important; }
+  .orbit-border { display: none; }
 }
 
 /* Installed app: no browser-ish touches anywhere. */

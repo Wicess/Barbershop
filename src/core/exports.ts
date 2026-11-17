@@ -2,6 +2,8 @@
 // normal currency units (e.g. 1250.50), not the cents the database stores.
 
 import type { Db } from "./db.ts";
+import { PAYMENT_LABEL } from "./commands.ts";
+import { locale, t, tk, tMessage } from "./i18n.ts";
 import { currencyDecimals } from "./money.ts";
 import { cashbook, clientList, payroll } from "./reports.ts";
 
@@ -22,18 +24,30 @@ export function toCsv(header: string[], rows: Cell[][]): string {
 
 export interface ExportKind {
   id: "sales" | "payments" | "expenses" | "money" | "payroll" | "clients";
+  /** English; shown through t(). */
   label: string;
+  /** English; shown through t(). */
   description: string;
 }
 
 export const EXPORTS: ExportKind[] = [
-  { id: "sales", label: "Sales, line by line", description: "Every item sold: who did it, their % and cut, the shop's cut" },
-  { id: "payments", label: "Payments & tips", description: "How each sale was paid, references and tips" },
-  { id: "expenses", label: "Expenses", description: "Every expense, including voided ones with the reason" },
-  { id: "money", label: "Money in & out", description: "The cash book: every payment in and every payment out" },
-  { id: "payroll", label: "Staff pay", description: "Each employee's month: share, tips, advances, paid, balance" },
-  { id: "clients", label: "Clients", description: "Name, phone, visits and total spent" },
+  { id: "sales", label: tk("Sales, line by line"), description: tk("Every item sold: who did it, their % and cut, the shop's cut") },
+  { id: "payments", label: tk("Payments & tips"), description: tk("How each sale was paid, references and tips") },
+  { id: "expenses", label: tk("Expenses"), description: tk("Every expense, including voided ones with the reason") },
+  { id: "money", label: tk("Money in & out"), description: tk("The cash book: every payment in and every payment out") },
+  { id: "payroll", label: tk("Staff pay"), description: tk("Each employee's month: share, tips, advances, paid, balance") },
+  { id: "clients", label: tk("Clients"), description: tk("Name, phone, visits and total spent") },
 ];
+
+// Words written into the spreadsheet follow the phone's language; numbers and
+// dates stay machine-readable.
+const STATUS_LABEL: Record<string, string> = { completed: tk("Completed"), voided: tk("Voided") };
+const status = (s: string | null | undefined) => (s ? t(STATUS_LABEL[s] ?? s) : s);
+const payMethod = (m: string | null | undefined) => (m ? t(PAYMENT_LABEL[m] ?? m) : m);
+/** Where money paid out came from: the cash drawer, elsewhere, or a payment method. */
+const paidFrom = (m: string | null | undefined) =>
+  m === "till" ? t("Cash drawer") : m === "other" ? t("Elsewhere") : payMethod(m);
+const time = (iso: string) => new Date(iso).toLocaleTimeString(locale());
 
 export async function buildExport(
   db: Db, kind: ExportKind["id"], from: string, to: string, currency: string, localDate: (iso: string) => string,
@@ -53,10 +67,10 @@ export async function buildExport(
         [from, to],
       );
       return toCsv(
-        ["Date", "Time", "Receipt", "Status", "Customer", "Phone", "Item", "Section", "Done by", "Qty", "Unit price", "Discount",
-          "Line total", "Staff %", "Staff cut", "Shop cut", "Product cost", "Cashier"],
+        [t("Date"), t("Time"), t("Receipt"), t("Status"), t("Customer"), t("Phone"), t("Item"), t("Section"), t("Done by"), t("Qty"),
+          t("Unit price"), t("Discount"), t("Line total"), t("Staff %"), t("Staff cut"), t("Shop cut"), t("Product cost"), t("Cashier")],
         rows.map((r: Record<string, never>) => [
-          r.business_date, new Date(r.created_at).toLocaleTimeString(), r.receipt_no, r.status, r.customer_name, r.customer_phone,
+          r.business_date, time(r.created_at), r.receipt_no, status(r.status), r.customer_name, r.customer_phone,
           r.name, r.dept, r.staff, r.qty, m(r.unit_price), m(r.discount), m(r.line_total), pct(r.commission_bp), m(r.commission),
           m(Number(r.line_total) - Number(r.commission)), m(r.cost_total), r.cashier,
         ]),
@@ -75,10 +89,10 @@ export async function buildExport(
         [from, to],
       );
       return toCsv(
-        ["Date", "Receipt", "Status", "Type", "Method / tip for", "Reference", "Amount"],
+        [t("Date"), t("Receipt"), t("Status"), t("Type"), t("Method / tip for"), t("Reference"), t("Amount")],
         [
-          ...pays.map((r: Record<string, never>) => [r.business_date, r.receipt_no, r.status, "Payment", r.method, r.reference, m(r.amount)]),
-          ...tips.map((r: Record<string, never>) => [r.business_date, r.receipt_no, r.status, "Tip", r.staff, null, m(r.amount)]),
+          ...pays.map((r: Record<string, never>) => [r.business_date, r.receipt_no, status(r.status), t("Payment"), payMethod(r.method), r.reference, m(r.amount)]),
+          ...tips.map((r: Record<string, never>) => [r.business_date, r.receipt_no, status(r.status), t("Tip"), r.staff, null, m(r.amount)]),
         ],
       );
     }
@@ -90,19 +104,21 @@ export async function buildExport(
         [from, to],
       );
       return toCsv(
-        ["Date", "Category", "Section", "Description", "Amount", "Paid from", "Recorded by", "Voided", "Void reason"],
+        [t("Date"), t("Category"), t("Section"), t("Description"), t("Amount"), t("Paid from"), t("Recorded by"), t("Voided"), t("Void reason")],
         rows.map((r: Record<string, never>) => [
-          r.business_date, r.category, r.dept ?? "Whole shop", r.description, m(r.amount),
-          r.paid_from === "till" ? "Cash drawer" : "Elsewhere", r.by, r.voided_at ? "yes" : "", r.void_reason,
+          r.business_date, r.category ? t(r.category) : r.category, r.dept ?? t("Whole shop"), r.description, m(r.amount),
+          r.paid_from === "till" ? t("Cash drawer") : t("Elsewhere"), r.by, r.voided_at ? t("yes") : "", r.void_reason,
         ]),
       );
     }
     case "money": {
       const book = await cashbook(db, from, to, localDate);
       return toCsv(
-        ["Date", "Time", "Entry", "Detail", "How", "By", "In", "Out"],
+        [t("Date"), t("Time"), t("Entry"), t("Detail"), t("How"), t("By"), t("In"), t("Out")],
         [...book.entries].reverse().map((e) => [
-          e.business_date, new Date(e.at).toLocaleTimeString(), e.label, e.detail, e.method, e.by,
+          // Expense labels are the shop's own descriptions (or a stored category); the rest are built in English.
+          e.business_date, time(e.at), e.kind === "expense" ? t(e.label) : tMessage(e.label),
+          e.kind === "expense" || !e.detail ? e.detail : tMessage(e.detail), e.direction === "in" ? payMethod(e.method) : paidFrom(e.method), e.by,
           e.direction === "in" ? m(e.amount) : null, e.direction === "out" ? m(e.amount) : null,
         ]),
       );
@@ -111,8 +127,8 @@ export async function buildExport(
       const month = from.slice(0, 7);
       const rows = await payroll(db, month);
       return toCsv(
-        ["Month", "Employee", "Role", "Share %", "Clients", "Services", "Brought in", "Share earned", "Tips", "Salary", "Bonuses",
-          "Deductions", "Advances", "Net pay", "Paid", "Balance"],
+        [t("Month"), t("Employee"), t("Role"), t("Share %"), t("Clients"), t("Services"), t("Brought in"), t("Share earned"), t("Tips"),
+          t("Salary"), t("Bonuses"), t("Deductions"), t("Advances"), t("Net pay"), t("Paid"), t("Balance")],
         rows.map((r) => [
           month, r.name, r.specialty, pct(r.commission_bp), r.clients, r.services, m(r.revenue), m(r.earned), m(r.tips), m(r.baseSalary),
           m(r.bonuses), m(r.deductions), m(r.advances), m(r.netPay), m(r.paid), m(r.balance),
@@ -122,7 +138,7 @@ export async function buildExport(
     case "clients": {
       const rows = await clientList(db);
       return toCsv(
-        ["Name", "Phone", "Visits", "Total spent", "First visit", "Last visit"],
+        [t("Name"), t("Phone"), t("Visits"), t("Total spent"), t("First visit"), t("Last visit")],
         rows.map((c) => [c.name, c.phone, c.visits, m(c.spent), c.first_date, c.last_date]),
       );
     }

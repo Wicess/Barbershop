@@ -3,7 +3,7 @@
 import {
   BarChart3, Boxes, CalendarCheck, ClipboardList, Cloud, CloudOff, Home, Lock, Menu, ReceiptText,
   RefreshCw, Settings as SettingsIcon, HandCoins, Contact, DatabaseBackup, ArrowLeftRight, ShoppingBag, Users, Wallet, Banknote, AlertTriangle,
-  Scissors, CalendarRange,
+  CalendarRange,
 } from "lucide-react";
 import { useCallback, useEffect, type ComponentType } from "react";
 import { haptic, PullToRefresh, setBackTarget, useCollapsedTitle } from "@/components/native.tsx";
@@ -14,7 +14,8 @@ import { useApp } from "@/client/app-context.tsx";
 import { go, useRoute } from "@/client/router.ts";
 import type { Permission } from "@/core/permissions.ts";
 import { ROLE_LABEL } from "@/core/permissions.ts";
-import { cx } from "@/components/ui.tsx";
+import { LogoMark, cx } from "@/components/ui.tsx";
+import { t } from "@/core/i18n.ts";
 import { Avatar } from "./Boot.tsx";
 import { HomeView } from "./Home.tsx";
 import { SellView } from "./Sell.tsx";
@@ -49,7 +50,7 @@ export const NAV: NavItem[] = [
   { path: "/sales", label: "Sales", icon: ReceiptText, description: "Receipts, voids and reprints" },
   { path: "/reports", label: "Reports", icon: BarChart3, perm: "reports.daily", description: "Profit & loss by section, staff, payment" },
   { path: "/earnings", label: "Earnings", icon: HandCoins, perm: "payroll.view", description: "What each employee has made, live" },
-  { path: "/money", label: "Money in & out", icon: ArrowLeftRight, perm: "reports.profit", description: "Every payment in and every shilling out" },
+  { path: "/money", label: "Money in & out", icon: ArrowLeftRight, perm: "reports.profit", description: "Every payment in and every franc out" },
   { path: "/payroll", label: "Staff pay", icon: Wallet, perm: "payroll.view", description: "Monthly earnings, advances, payments" },
   { path: "/clients", label: "Clients", icon: Contact, perm: "reports.daily", description: "Regulars, visit history, who hasn't been back" },
   { path: "/staff", label: "Staff", icon: Users, perm: "staff.view", description: "Barbers, nail techs and their share" },
@@ -148,32 +149,41 @@ export function Shell() {
     }
   })();
 
+  const sideNav = allowed.filter((n) => n.path !== "/" || homePath === "/");
+
   return (
     <div className="min-h-dvh lg:flex">
       {/* Desktop sidebar */}
-      <aside className="no-print theme-panel sticky top-0 hidden h-dvh w-[272px] shrink-0 flex-col bg-panel px-3 py-5 lg:flex">
-        <div className="mb-6 flex items-center gap-3 px-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-on-primary shadow-cta">
-            <Scissors className="size-5" />
+      <aside className="no-print sticky top-0 hidden h-dvh w-[272px] shrink-0 flex-col border-r border-line bg-surface px-3 py-5 lg:flex [@media(max-height:680px)]:py-3">
+        <div className="mb-3 flex items-center gap-3 px-3">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#1b1410] ring-1 ring-white/12 shadow-[0_10px_24px_-12px_rgb(236_106_56/0.7)] [@media(max-height:680px)]:size-9">
+            <LogoMark className="size-7 [@media(max-height:680px)]:size-6" />
           </span>
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-ink-3">Barbershop</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-ink-3">{t("Barbershop")}</p>
             <p className="line-clamp-2 font-display text-[14px] font-bold uppercase leading-[1.2] tracking-[0.02em]">{settings.shop_name}</p>
           </div>
         </div>
-        <nav className="nav-scroll -mr-2 flex-1 space-y-0.5 overflow-y-auto pr-2" aria-label="Main">
-          {allowed.filter((n) => n.path !== "/" || homePath === "/").map((n) => (
+        {/* Toghu embroidery band under the shop name (hidden on short windows so the menu still fits). */}
+        <div aria-hidden className="toghu-band mx-3 mb-2.5 shrink-0 opacity-80 [@media(max-height:760px)]:hidden" />
+        {/* Every item stays visible: rows shrink with the window's height (between 30 and 44px) instead of scrolling out of sight. */}
+        <nav
+          className="nav-scroll -mr-2 flex-1 overflow-y-auto pr-2"
+          style={{ "--nav-n": sideNav.length } as React.CSSProperties}
+          aria-label={t("Main menu")}
+        >
+          {sideNav.map((n) => (
             <a
               key={n.path}
               href={`#${n.path}`}
               aria-current={path === n.path ? "page" : undefined}
               className={cx(
-                "flex min-h-11 items-center gap-3 rounded-2xl px-3 text-sm font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.98] [@media(max-height:900px)]:min-h-10",
-                path === n.path ? "bg-primary text-on-primary shadow-cta" : "text-ink-2 hover:bg-surface hover:text-ink",
+                "flex h-[clamp(24px,calc((100dvh-15.9rem)/var(--nav-n)),44px)] [@media(max-height:680px)]:h-[clamp(22px,calc((100dvh-13.5rem)/var(--nav-n)),44px)] items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.98] [@media(max-height:760px)]:text-[13px]",
+                path === n.path ? "bg-primary text-on-primary shadow-cta" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
               )}
             >
-              <n.icon className="size-5" />
-              {n.label}
+              <n.icon className="size-5 shrink-0 [@media(max-height:760px)]:size-[18px]" />
+              <span className="truncate">{t(n.label)}</span>
             </a>
           ))}
         </nav>
@@ -196,7 +206,7 @@ export function Shell() {
       {/* Mobile tab bar: liquid glass. One orange pill glides (with a little
           spring) to whichever tab is active; tabs never change size. */}
       <nav
-        aria-label="Tabs"
+        aria-label={t("Tabs")}
         className="no-print pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] lg:hidden"
       >
         <div className="glass pointer-events-auto relative mx-auto flex max-w-md animate-rise items-center rounded-full p-1.5">
@@ -218,18 +228,18 @@ export function Shell() {
                   if (!active) haptic();
                 }}
                 aria-current={active ? "page" : undefined}
-                aria-label={n.label}
+                aria-label={t(n.label)}
                 className={cx(
                   "relative flex h-[56px] min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-full text-[11px] font-semibold transition-[color,transform] duration-300 active:scale-90",
                   active ? "text-on-primary" : "text-on-panel/55 hover:text-on-panel/85",
                 )}
               >
                 <n.icon className={cx("size-[22px] transition-transform duration-500 ease-[cubic-bezier(0.34,1.4,0.64,1)]", active && "-translate-y-0.5 scale-110")} />
-                <span className="max-w-full truncate px-1">{n.label}</span>
+                <span className="max-w-full truncate px-1">{t(n.label)}</span>
                 {badge && (
                   <span
                     className={cx("absolute right-[22%] top-2.5 size-2.5 rounded-full ring-2 ring-panel", sync.rejected > 0 ? "bg-negative" : "bg-warning")}
-                    aria-label={sync.rejected > 0 ? "Sync problem" : "Changes waiting to upload"}
+                    aria-label={sync.rejected > 0 ? t("Sync problem") : t("Changes waiting to upload")}
                   />
                 )}
               </a>
@@ -260,7 +270,7 @@ function TopBar() {
       <div className="relative flex h-16 items-center gap-2 px-4">
         <button
           onClick={() => go("/more")}
-          aria-label={`${user.name}, ${ROLE_LABEL[user.role]}. Open menu`}
+          aria-label={t("{name}, {role}. Open menu", { name: user.name, role: t(ROLE_LABEL[user.role]) })}
           className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full ring-1 ring-line-strong transition-transform duration-150 active:scale-90"
         >
           <Avatar name={user.name} small />
@@ -289,7 +299,7 @@ function TopBar() {
         <SyncBadge compact />
         <button
           onClick={lock}
-          aria-label="Lock screen"
+          aria-label={t("Lock screen")}
           className="flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-ink ring-1 ring-line-strong transition-transform duration-150 hover:bg-surface-2 active:scale-90"
         >
           <Lock className="size-5" />
@@ -308,9 +318,9 @@ function UserBox() {
         <Avatar name={user.name} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{user.name}</p>
-          <p className="text-xs text-ink-3">{ROLE_LABEL[user.role]}</p>
+          <p className="text-xs text-ink-3">{t(ROLE_LABEL[user.role])}</p>
         </div>
-        <button onClick={lock} aria-label="Lock screen" className="flex size-11 cursor-pointer items-center justify-center rounded-xl text-ink-2 hover:bg-surface-2">
+        <button onClick={lock} aria-label={t("Lock screen")} className="flex size-11 cursor-pointer items-center justify-center rounded-xl text-ink-2 hover:bg-surface-2">
           <Lock className="size-5" />
         </button>
       </div>
@@ -323,12 +333,12 @@ export function SyncBadge({ wide, compact }: { wide?: boolean; compact?: boolean
   const problem = sync.rejected > 0 || sync.status === "error";
   const Icon = problem ? AlertTriangle : sync.status === "offline" ? CloudOff : sync.status === "syncing" ? RefreshCw : Cloud;
   const label = problem
-    ? sync.rejected > 0 ? `${sync.rejected} change(s) refused` : "Sync problem"
+    ? sync.rejected > 0 ? t("{n} change(s) refused", { n: sync.rejected }) : t("Sync problem")
     : sync.status === "offline"
-      ? sync.pending ? `Offline · ${sync.pending} waiting` : "Offline"
+      ? sync.pending ? t("Offline · {n} waiting", { n: sync.pending }) : t("Offline")
       : sync.status === "syncing"
-        ? "Syncing…"
-        : sync.pending ? `${sync.pending} waiting` : "Saved";
+        ? t("Syncing…")
+        : sync.pending ? t("{n} waiting", { n: sync.pending }) : t("Saved");
   return (
     <button
       onClick={() => go("/sync")}
@@ -337,7 +347,7 @@ export function SyncBadge({ wide, compact }: { wide?: boolean; compact?: boolean
         problem ? "text-negative" : sync.status === "offline" ? "text-warning" : "text-ink-3",
         wide && "w-full",
       )}
-      aria-label={`Sync status: ${label}`}
+      aria-label={t("Sync status: {label}", { label })}
     >
       <Icon className={cx("size-4", sync.status === "syncing" && "animate-spin")} />
       <span className={wide ? "" : compact ? "sr-only" : "hidden sm:inline"}>{label}</span>
@@ -348,8 +358,8 @@ export function SyncBadge({ wide, compact }: { wide?: boolean; compact?: boolean
 function NoAccess() {
   return (
     <div className="py-16 text-center">
-      <p className="font-semibold">This page isn't available for your role.</p>
-      <p className="mt-1 text-sm text-ink-3">Ask the owner if you need access.</p>
+      <p className="font-semibold">{t("This page isn't available for your role.")}</p>
+      <p className="mt-1 text-sm text-ink-3">{t("Ask the owner if you need access.")}</p>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { useApp } from "@/client/app-context.tsx";
 import { getMeta, setMeta, type StorageHealth } from "@/client/localdb.ts";
 import { go } from "@/client/router.ts";
 import { formatDate, formatDateTime } from "@/core/dates.ts";
+import { plural, t, tMessage } from "@/core/i18n.ts";
 
 const LAST_BACKUP = "bms_last_backup";
 /** Changes waiting this long to upload get a visible warning. */
@@ -100,17 +101,19 @@ export function DataSafetyBanner() {
 
   if (health.saveError) {
     return (
-      <Banner tone="negative" icon={<AlertTriangle className="size-5" />} title="Not saved on this device">
-        {health.saveError}
-        {sync.status === "idle" && sync.pending === 0 && " Everything has reached the server, so nothing is lost."}
+      <Banner tone="negative" icon={<AlertTriangle className="size-5" />} title={t("Not saved on this device")}>
+        {tMessage(health.saveError)}
+        {sync.status === "idle" && sync.pending === 0 && " " + t("Everything has reached the server, so nothing is lost.")}
       </Banner>
     );
   }
   if (stale) {
     return (
-      <Banner tone="warning" icon={<CloudUpload className="size-5" />} title={`${sync.pending} change${sync.pending === 1 ? "" : "s"} only on this device`}>
-        Waiting since {formatDateTime(sync.oldestPendingAt!)}. They are saved here, but connect to the internet soon so they are also kept safely on the
-        server. Don&apos;t clear this browser&apos;s data or uninstall the app until they upload.
+      <Banner tone="warning" icon={<CloudUpload className="size-5" />} title={plural(sync.pending, "{n} change only on this device", "{n} changes only on this device")}>
+        {t(
+          "Waiting since {date}. They are saved here, but connect to the internet soon so they are also kept safely on the server. Don't clear this browser's data or uninstall the app until they upload.",
+          { date: formatDateTime(sync.oldestPendingAt!) },
+        )}
       </Banner>
     );
   }
@@ -119,18 +122,20 @@ export function DataSafetyBanner() {
       <Banner
         tone="warning"
         icon={<HardDriveDownload className="size-5" />}
-        title={health.recoveredFrom ? "This device's copy was repaired" : "The shop was restored from a backup"}
+        title={health.recoveredFrom ? t("This device's copy was repaired") : t("The shop was restored from a backup")}
         onClose={async () => {
           setDismissed(true);
           if (resetAt) await setMeta(store, "reset_at", null);
         }}
-        action={user.role === "owner" ? { label: "See backups", onClick: () => go("/backup") } : undefined}
+        action={user.role === "owner" ? { label: t("See backups"), onClick: () => go("/backup") } : undefined}
       >
         {health.recoveredFrom
           ? health.recoveredFrom === "server"
-            ? "The saved file was damaged, so everything is being downloaded again from the server."
-            : `The saved file was damaged, so the copy from ${formatDate(health.recoveredFrom, { weekday: "long", day: "numeric", month: "short" })} was loaded and newer changes are coming back from the server.`
-          : "This device downloaded the restored data. Its previous copy was kept as an archive under Backup & export."}
+            ? t("The saved file was damaged, so everything is being downloaded again from the server.")
+            : t("The saved file was damaged, so the copy from {date} was loaded and newer changes are coming back from the server.", {
+                date: formatDate(health.recoveredFrom, { weekday: "long", day: "numeric", month: "short" }),
+              })
+          : t("This device downloaded the restored data. Its previous copy was kept as an archive under Backup & export.")}
       </Banner>
     );
   }
@@ -167,7 +172,7 @@ function Banner({
         )}
       </div>
       {onClose && (
-        <button onClick={onClose} aria-label="Dismiss" className="-m-2 flex size-10 shrink-0 cursor-pointer items-center justify-center text-ink-3">
+        <button onClick={onClose} aria-label={t("Dismiss")} className="-m-2 flex size-10 shrink-0 cursor-pointer items-center justify-center text-ink-3">
           <X className="size-4" />
         </button>
       )}

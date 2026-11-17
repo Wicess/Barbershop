@@ -1,6 +1,7 @@
 import { upsert } from "@/core/db.ts";
 import { hashPin, isValidPin, newSalt } from "@/core/pin.ts";
 import { DEFAULT_DEPARTMENTS } from "@/core/seed.ts";
+import { FR } from "@/i18n/fr/index.ts";
 import { DEFAULT_SETTINGS, serializeSetting } from "@/core/settings.ts";
 import { issueDeviceToken } from "@/server/auth.ts";
 import { nextRev, serverDb } from "@/server/db.ts";
@@ -15,6 +16,7 @@ export async function POST(req: Request) {
   const ownerName = String(body.ownerName ?? "").trim();
   const currency = String(body.currency ?? "").trim().toUpperCase();
   const pin = String(body.pin ?? "");
+  const lang = body.lang === "en" ? "en" : "fr";
   if (!shopName || !ownerName) return Response.json({ error: "Enter the shop name and your name." }, { status: 400 });
   if (!/^[A-Z]{3}$/.test(currency)) return Response.json({ error: "Choose a currency." }, { status: 400 });
   if (!isValidPin(pin)) return Response.json({ error: "PIN must be 4 to 6 digits." }, { status: 400 });
@@ -34,8 +36,10 @@ export async function POST(req: Request) {
       for (const [key, value] of Object.entries(settings)) {
         await upsert(tx, "settings", { id: key, value: serializeSetting(value), updated_at: now }, rev);
       }
+      // A shop set up in French gets its sections named in French ("Coiffure", "Boissons"…).
       for (const d of DEFAULT_DEPARTMENTS) {
-        await upsert(tx, "departments", { ...d, active: 1, created_at: now, updated_at: now }, rev);
+        const name = lang === "fr" ? (FR[d.name] ?? d.name) : d.name;
+        await upsert(tx, "departments", { ...d, name, active: 1, created_at: now, updated_at: now }, rev);
       }
       const ownerId = crypto.randomUUID();
       await upsert(tx, "users", {

@@ -1,3 +1,5 @@
+import { locale } from "./i18n.ts";
+
 // All money is stored as integers in the currency's smallest unit (cents,
 // kobo, pesewas...). Commission rates are basis points: 4000 = 40%.
 
@@ -15,7 +17,7 @@ export function formatMoney(minor: number, currency: string, opts: { sign?: bool
   const major = minor / 10 ** decimals;
   let text: string;
   try {
-    text = new Intl.NumberFormat(undefined, {
+    text = new Intl.NumberFormat(locale(), {
       style: "currency",
       currency,
       currencyDisplay: "narrowSymbol",

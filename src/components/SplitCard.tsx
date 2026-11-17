@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, HandHeart, Store } from "lucide-react";
+import { t } from "@/core/i18n.ts";
 import { bpToPercent } from "@/core/money.ts";
 import type { SaleSplit } from "@/core/reports.ts";
 import { Money, cx } from "./ui.tsx";
@@ -19,7 +20,7 @@ export function SplitCard({ split, compact }: { split: SaleSplit; compact?: bool
           {split.lines.map((l) => (
             <li key={l.line_id} className="px-4 py-3">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 truncate font-semibold">{l.name}</span>
+                <span className="min-w-0 truncate font-semibold">{t(l.name)}</span>
                 <Money value={l.line_total} className="shrink-0 text-sm font-semibold" />
               </div>
               <div className={cx("mt-1.5 grid gap-2 text-xs", l.staff_id ? "grid-cols-2" : "grid-cols-1")}>
@@ -30,7 +31,7 @@ export function SplitCard({ split, compact }: { split: SaleSplit; compact?: bool
                   </div>
                 )}
                 <div className="rounded-lg bg-surface-2 px-2.5 py-1.5 text-ink-2">
-                  <div className="font-medium">Shop · {l.line_total ? bpToPercent(Math.round((l.shop_cut / l.line_total) * 10000)) : "0%"}</div>
+                  <div className="font-medium">{t("Shop · {rate}", { rate: l.line_total ? bpToPercent(Math.round((l.shop_cut / l.line_total) * 10000)) : bpToPercent(0) })}</div>
                   <Money value={l.shop_cut} className="text-sm font-bold text-ink" />
                 </div>
               </div>
@@ -46,15 +47,15 @@ export function SplitCard({ split, compact }: { split: SaleSplit; compact?: bool
           </div>
         ))}
         <div className="flex justify-between gap-3">
-          <span className="flex items-center gap-1.5 text-ink-2"><Store className="size-4" /> Shop keeps</span>
+          <span className="flex items-center gap-1.5 text-ink-2"><Store className="size-4" /> {t("Shop keeps")}</span>
           <Money value={split.shop} className="font-semibold" />
         </div>
         <div className="flex items-center justify-between gap-3 border-t border-line pt-2 font-bold">
           <span className="flex items-center gap-1.5">
-            Total
+            {t("Total")}
             {balanced && (
               <span className="inline-flex items-center gap-0.5 rounded-md bg-positive-soft px-1.5 text-[11px] font-semibold text-positive">
-                <Check className="size-3" /> adds up
+                <Check className="size-3" /> {t("adds up")}
               </span>
             )}
           </span>
@@ -62,14 +63,14 @@ export function SplitCard({ split, compact }: { split: SaleSplit; compact?: bool
         </div>
         {split.tips.length > 0 && (
           <div className="space-y-1.5 border-t border-line pt-2">
-            {split.tips.map((t) => (
-              <div key={t.staff_id} className="flex justify-between gap-3">
-                <span className="flex items-center gap-1.5 text-ink-2"><HandHeart className="size-4" /> Tip for {t.staff} (100%)</span>
-                <Money value={t.amount} className="font-semibold text-accent" />
+            {split.tips.map((tip) => (
+              <div key={tip.staff_id} className="flex justify-between gap-3">
+                <span className="flex items-center gap-1.5 text-ink-2"><HandHeart className="size-4" /> {t("Tip for {name} (100%)", { name: tip.staff ?? "" })}</span>
+                <Money value={tip.amount} className="font-semibold text-accent" />
               </div>
             ))}
             <div className="flex justify-between gap-3 text-ink-3">
-              <span>Customer paid</span>
+              <span>{t("Customer paid")}</span>
               <Money value={split.total + split.tipTotal} />
             </div>
           </div>

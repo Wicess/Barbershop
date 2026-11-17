@@ -6,6 +6,7 @@ import { useApp, useQuery } from "@/client/app-context.tsx";
 import { setParams } from "@/client/router.ts";
 import { toBusinessDate } from "@/core/dates.ts";
 import { formatMoney } from "@/core/money.ts";
+import { t } from "@/core/i18n.ts";
 import { stockLevels } from "@/core/reports.ts";
 import { SUGGESTIONS } from "@/core/seed.ts";
 import {
@@ -36,33 +37,33 @@ export function CatalogView({ params }: { params: URLSearchParams }) {
 
   return (
     <div>
-      <PageHeader title="Price list & stock" subtitle="What the shop sells, grouped into sections" />
+      <PageHeader title={t("Price list & stock")} subtitle={t("What the shop sells, grouped into sections")} />
       <div className="chip-scroll -mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1">
         {data.depts.map((d) => (
           <Chip key={d.id} active={d.id === dept?.id} onClick={() => setParams({ d: d.id })}>
-            {d.name}{!d.active && " (hidden)"}
+            {t(d.name)}{!d.active && ` ${t("(hidden)")}`}
           </Chip>
         ))}
-        <Chip onClick={() => setEditDept("new")}>+ Section</Chip>
+        <Chip onClick={() => setEditDept("new")}>+ {t("Section")}</Chip>
       </div>
 
       {dept && (
         <div className="mb-3 flex items-center justify-between gap-2">
           <p className="text-sm text-ink-3">
-            {isProduct ? "Products sold over the counter. Profit = selling price − cost price." : "Services. Each one is credited to the staff member who does it."}
+            {isProduct ? t("Products sold over the counter. Profit = selling price − cost price.") : t("Services. Each one is credited to the staff member who does it.")}
           </p>
-          <Button variant="ghost" size="sm" onClick={() => setEditDept(dept)}><Pencil className="size-4" /> Section</Button>
+          <Button variant="ghost" size="sm" onClick={() => setEditDept(dept)}><Pencil className="size-4" /> {t("Section")}</Button>
         </div>
       )}
 
       {dept && !isProduct && (
         <>
           {services.length === 0 ? (
-            <Empty title={`No services in ${dept.name}`} action={<Button onClick={() => setEditService("new")}><Plus className="size-4" /> Add service</Button>}>
-              Add each service with its normal price.
+            <Empty title={t("No services in {section}", { section: t(dept.name) })} action={<Button onClick={() => setEditService("new")}><Plus className="size-4" /> {t("Add service")}</Button>}>
+              {t("Add each service with its normal price.")}
             </Empty>
           ) : (
-            <Card className="divide-y divide-line">
+            <Card className="divide-y divide-line lg:grid lg:grid-cols-2 lg:gap-x-8 lg:px-2 xl:grid-cols-3 lg:[&>:nth-child(2)]:border-t-0 xl:[&>:nth-child(3)]:border-t-0">
               {services.map((s) => (
                 <button key={s.id} onClick={() => setEditService(s)} className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left hover:bg-surface-2">
                   <span className={cx("flex-1 font-semibold", !s.active && "text-ink-3 line-through")}>{s.name}</span>
@@ -71,15 +72,15 @@ export function CatalogView({ params }: { params: URLSearchParams }) {
               ))}
             </Card>
           )}
-          {services.length > 0 && <Button className="mt-3" variant="secondary" block onClick={() => setEditService("new")}><Plus className="size-4" /> Add service</Button>}
+          {services.length > 0 && <Button className="mt-3 lg:w-auto" variant="secondary" block onClick={() => setEditService("new")}><Plus className="size-4" /> {t("Add service")}</Button>}
         </>
       )}
 
       {dept && isProduct && (
         <>
           {products.length === 0 ? (
-            <Empty title={`No products in ${dept.name}`} action={<Button onClick={() => setEditProduct("new")}><Plus className="size-4" /> Add product</Button>}>
-              Add drinks or other items with their selling price and what they cost you.
+            <Empty title={t("No products in {section}", { section: t(dept.name) })} action={<Button onClick={() => setEditProduct("new")}><Plus className="size-4" /> {t("Add product")}</Button>}>
+              {t("Add drinks or other items with their selling price and what they cost you.")}
             </Empty>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -92,17 +93,17 @@ export function CatalogView({ params }: { params: URLSearchParams }) {
                       <button onClick={() => setEditProduct(p)} className="cursor-pointer text-left">
                         <div className={cx("font-semibold", !p.active && "text-ink-3 line-through")}>{p.name}</div>
                         <div className="text-xs text-ink-3">
-                          Sells <Money value={p.price} /> · costs <Money value={p.cost} /> · profit{" "}
+                          {t("Sells")} <Money value={p.price} /> · {t("costs")} <Money value={p.cost} /> · {t("profit")}{" "}
                           <span className={margin < 0 ? "text-negative" : "text-positive"}>{formatMoney(margin, settings.currency)}</span>
                         </div>
                       </button>
-                      {p.track_stock ? <Badge tone={p.on_hand <= 0 ? "negative" : low ? "warning" : "neutral"}>{p.on_hand} in stock</Badge> : <Badge>No stock count</Badge>}
+                      {p.track_stock ? <Badge tone={p.on_hand <= 0 ? "negative" : low ? "warning" : "neutral"}>{t("{n} in stock", { n: p.on_hand })}</Badge> : <Badge>{t("No stock count")}</Badge>}
                     </div>
                     {p.track_stock ? (
                       <div className="mt-3 grid grid-cols-3 gap-2">
-                        <Button size="sm" variant="secondary" onClick={() => setStockFor({ product: p, mode: "purchase" })}><PackagePlus className="size-4" /> Restock</Button>
-                        <Button size="sm" variant="secondary" onClick={() => setStockFor({ product: p, mode: "spoilage" })}>Spoiled</Button>
-                        <Button size="sm" variant="secondary" onClick={() => setStockFor({ product: p, mode: "count" })}>Count</Button>
+                        <Button size="sm" variant="secondary" onClick={() => setStockFor({ product: p, mode: "purchase" })}><PackagePlus className="size-4" /> {t("Restock")}</Button>
+                        <Button size="sm" variant="secondary" onClick={() => setStockFor({ product: p, mode: "spoilage" })}>{t("Spoiled")}</Button>
+                        <Button size="sm" variant="secondary" onClick={() => setStockFor({ product: p, mode: "count" })}>{t("Count")}</Button>
                       </div>
                     ) : null}
                   </Card>
@@ -110,7 +111,7 @@ export function CatalogView({ params }: { params: URLSearchParams }) {
               })}
             </div>
           )}
-          {products.length > 0 && <Button className="mt-3" variant="secondary" block onClick={() => setEditProduct("new")}><Plus className="size-4" /> Add product</Button>}
+          {products.length > 0 && <Button className="mt-3 lg:w-auto" variant="secondary" block onClick={() => setEditProduct("new")}><Plus className="size-4" /> {t("Add product")}</Button>}
         </>
       )}
 
@@ -133,29 +134,29 @@ function ServiceSheet({ service, dept, onClose }: { service: Service | null; dep
     <Sheet
       open
       onClose={onClose}
-      title={service ? "Edit service" : `New ${dept.name.toLowerCase()} service`}
+      title={service ? t("Edit service") : t("New {section} service", { section: t(dept.name).toLowerCase() })}
       footer={
         <Button block size="lg" loading={busy} disabled={!name.trim() || price == null} onClick={async () => {
           setBusy(true);
-          const ok = await run("service.upsert", { id: service?.id ?? crypto.randomUUID(), department_id: dept.id, name, price: price ?? 0, active: active ? 1 : 0, sort: service?.sort }, "Saved");
+          const ok = await run("service.upsert", { id: service?.id ?? crypto.randomUUID(), department_id: dept.id, name, price: price ?? 0, active: active ? 1 : 0, sort: service?.sort }, t("Saved"));
           setBusy(false);
           if (ok) onClose();
-        }}>Save</Button>
+        }}>{t("Save")}</Button>
       }
     >
       <div className="space-y-4">
-        <Field label="Service name" htmlFor="svn">
+        <Field label={t("Service name")} htmlFor="svn">
           <Input id="svn" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         </Field>
         {!service && suggestions.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {suggestions.map((s) => <Chip key={s} active={name === s} onClick={() => setName(s)}>{s}</Chip>)}
+            {suggestions.map((s) => <Chip key={s} active={name === t(s)} onClick={() => setName(t(s))}>{t(s)}</Chip>)}
           </div>
         )}
-        <Field label="Price" htmlFor="svp" hint="The normal price. Staff share is worked out from what the customer actually pays.">
+        <Field label={t("Price")} htmlFor="svp" hint={t("The normal price. Staff share is worked out from what the customer actually pays.")}>
           <MoneyInput id="svp" value={price} onChange={setPrice} />
         </Field>
-        {service && <Toggle checked={active} onChange={setActive} label="Available for sale" />}
+        {service && <Toggle checked={active} onChange={setActive} label={t("Available for sale")} />}
       </div>
     </Sheet>
   );
@@ -175,7 +176,7 @@ function ProductSheet({ product, dept, onClose }: { product: Product | null; dep
     <Sheet
       open
       onClose={onClose}
-      title={product ? "Edit product" : `New product in ${dept.name}`}
+      title={product ? t("Edit product") : t("New product in {section}", { section: t(dept.name) })}
       footer={
         <Button block size="lg" loading={busy} disabled={!name.trim() || price == null || cost == null} onClick={async () => {
           setBusy(true);
@@ -183,31 +184,31 @@ function ProductSheet({ product, dept, onClose }: { product: Product | null; dep
           let ok = await run("product.upsert", { id, department_id: dept.id, name, price: price ?? 0, cost: cost ?? 0, track_stock: track ? 1 : 0, active: active ? 1 : 0, sort: product?.sort });
           const qty = parseInt(opening, 10);
           if (ok && !product && track && qty > 0) {
-            ok = await run("stock.move", { id: crypto.randomUUID(), product_id: id, qty, reason: "adjustment", unit_cost: cost ?? 0, note: "Opening stock", business_date: toBusinessDate() });
+            ok = await run("stock.move", { id: crypto.randomUUID(), product_id: id, qty, reason: "adjustment", unit_cost: cost ?? 0, note: t("Opening stock"), business_date: toBusinessDate() });
           }
           setBusy(false);
           if (ok) onClose();
-        }}>Save</Button>
+        }}>{t("Save")}</Button>
       }
     >
       <div className="space-y-4">
-        <Field label="Name" htmlFor="pn"><Input id="pn" value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
+        <Field label={t("Name")} htmlFor="pn"><Input id="pn" value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
         {!product && (
           <div className="flex flex-wrap gap-2">
-            {suggestions.map((s) => <Chip key={s} active={name === s} onClick={() => setName(s)}>{s}</Chip>)}
+            {suggestions.map((s) => <Chip key={s} active={name === t(s)} onClick={() => setName(t(s))}>{t(s)}</Chip>)}
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Selling price" htmlFor="pp"><MoneyInput id="pp" value={price} onChange={setPrice} /></Field>
-          <Field label="Cost price" htmlFor="pc" hint="What one costs you"><MoneyInput id="pc" value={cost} onChange={setCost} /></Field>
+          <Field label={t("Selling price")} htmlFor="pp"><MoneyInput id="pp" value={price} onChange={setPrice} /></Field>
+          <Field label={t("Cost price")} htmlFor="pc" hint={t("What one costs you")}><MoneyInput id="pc" value={cost} onChange={setCost} /></Field>
         </div>
-        <Toggle checked={track} onChange={setTrack} label="Count stock" description="Each sale takes one out of stock; restocks add to it." />
+        <Toggle checked={track} onChange={setTrack} label={t("Count stock")} description={t("Each sale takes one out of stock; restocks add to it.")} />
         {!product && track && (
-          <Field label="How many do you have now?" htmlFor="po">
+          <Field label={t("How many do you have now?")} htmlFor="po">
             <Input id="po" inputMode="numeric" value={opening} onChange={(e) => setOpening(e.target.value.replace(/\D/g, ""))} placeholder="0" className="num" />
           </Field>
         )}
-        {product && <Toggle checked={active} onChange={setActive} label="Available for sale" />}
+        {product && <Toggle checked={active} onChange={setActive} label={t("Available for sale")} />}
       </div>
     </Sheet>
   );
@@ -223,32 +224,32 @@ function DeptSheet({ dept, onClose, onCreated }: { dept: Dept | null; onClose: (
     <Sheet
       open
       onClose={onClose}
-      title={dept ? "Edit section" : "New section"}
+      title={dept ? t("Edit section") : t("New section")}
       footer={
         <Button block size="lg" loading={busy} disabled={!name.trim()} onClick={async () => {
           setBusy(true);
           const id = dept?.id ?? `dept-${crypto.randomUUID()}`;
-          const ok = await run("department.upsert", { id, name, kind, active: active ? 1 : 0, sort: dept?.sort }, "Saved");
+          const ok = await run("department.upsert", { id, name, kind, active: active ? 1 : 0, sort: dept?.sort }, t("Saved"));
           setBusy(false);
           if (ok) {
             onClose();
             if (!dept) onCreated(id);
           }
-        }}>Save</Button>
+        }}>{t("Save")}</Button>
       }
     >
       <div className="space-y-4">
-        <p className="text-sm text-ink-3">Sections are how the reports split your money, e.g. Barbering, Manicure, Pedicure, Drinks. Each section gets its own profit figure.</p>
-        <Field label="Section name" htmlFor="dn"><Input id="dn" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Facials, Snacks" /></Field>
+        <p className="text-sm text-ink-3">{t("Sections are how the reports split your money, e.g. Barbering, Manicure, Pedicure, Drinks. Each section gets its own profit figure.")}</p>
+        <Field label={t("Section name")} htmlFor="dn"><Input id="dn" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("e.g. Facials, Snacks")} /></Field>
         {!dept && (
-          <Field label="It sells">
+          <Field label={t("It sells")}>
             <div className="flex gap-2">
-              <Chip active={kind === "service"} onClick={() => setKind("service")}>Services (done by staff)</Chip>
-              <Chip active={kind === "product"} onClick={() => setKind("product")}>Products (drinks, items)</Chip>
+              <Chip active={kind === "service"} onClick={() => setKind("service")}>{t("Services (done by staff)")}</Chip>
+              <Chip active={kind === "product"} onClick={() => setKind("product")}>{t("Products (drinks, items)")}</Chip>
             </div>
           </Field>
         )}
-        {dept && <Toggle checked={active} onChange={setActive} label="Show at the till" description="Hidden sections keep their history in reports." />}
+        {dept && <Toggle checked={active} onChange={setActive} label={t("Show at the till")} description={t("Hidden sections keep their history in reports.")} />}
       </div>
     </Sheet>
   );
@@ -265,7 +266,7 @@ function StockSheet({ product, mode, onClose }: { product: Product; mode: "purch
   const n = parseInt(qty, 10);
   const diff = mode === "count" ? n - product.on_hand : 0;
   const valid = Number.isFinite(n) && (mode === "count" ? diff !== 0 : n > 0);
-  const titles = { purchase: "Restock", spoilage: "Spoiled or damaged", count: "Stock count" };
+  const titles = { purchase: t("Restock"), spoilage: t("Spoiled or damaged"), count: t("Stock count") };
   return (
     <Sheet
       open
@@ -281,37 +282,37 @@ function StockSheet({ product, mode, onClose }: { product: Product; mode: "purch
             reason: mode === "count" ? "adjustment" : mode,
             unit_cost: mode === "purchase" ? unitCost ?? product.cost : product.cost,
             paid_from: paidFrom,
-            note: note || (mode === "count" ? `Counted ${n}, system had ${product.on_hand}` : null),
+            note: note || (mode === "count" ? t("Counted {n}, system had {m}", { n, m: product.on_hand }) : null),
             business_date: toBusinessDate(),
-          }, "Stock updated");
+          }, t("Stock updated"));
           setBusy(false);
           if (ok) onClose();
-        }}>Save</Button>
+        }}>{t("Save")}</Button>
       }
     >
       <div className="space-y-4">
-        <p className="text-sm text-ink-3">In stock now: <span className="num font-semibold text-ink">{product.on_hand}</span></p>
-        <Field label={mode === "count" ? "How many are actually on the shelf?" : "How many?"} htmlFor="sq">
+        <p className="text-sm text-ink-3">{t("In stock now:")} <span className="num font-semibold text-ink">{product.on_hand}</span></p>
+        <Field label={mode === "count" ? t("How many are actually on the shelf?") : t("How many?")} htmlFor="sq">
           <Input id="sq" inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value.replace(/\D/g, ""))} className="num text-lg" autoFocus />
         </Field>
         {mode === "count" && valid && (
           <p className={cx("text-sm font-semibold", diff < 0 ? "text-negative" : "text-positive")}>
-            {diff < 0 ? `${-diff} missing — counted as a loss at cost price.` : `${diff} extra — the stock level will be corrected.`}
+            {diff < 0 ? t("{n} missing — counted as a loss at cost price.", { n: -diff }) : t("{n} extra — the stock level will be corrected.", { n: diff })}
           </p>
         )}
         {mode === "purchase" && (
           <>
-            <Field label="Cost per item" htmlFor="suc" hint="Updates the product's cost price."><MoneyInput id="suc" value={unitCost} onChange={setUnitCost} /></Field>
-            <Field label="Paid from">
+            <Field label={t("Cost per item")} htmlFor="suc" hint={t("Updates the product's cost price.")}><MoneyInput id="suc" value={unitCost} onChange={setUnitCost} /></Field>
+            <Field label={t("Paid from")}>
               <div className="flex gap-2">
-                <Chip active={paidFrom === "till"} onClick={() => setPaidFrom("till")}>Cash drawer</Chip>
-                <Chip active={paidFrom === "other"} onClick={() => setPaidFrom("other")}>Elsewhere</Chip>
+                <Chip active={paidFrom === "till"} onClick={() => setPaidFrom("till")}>{t("Cash drawer")}</Chip>
+                <Chip active={paidFrom === "other"} onClick={() => setPaidFrom("other")}>{t("Elsewhere")}</Chip>
               </div>
             </Field>
           </>
         )}
-        {mode === "spoilage" && <p className="text-xs text-ink-3">Counted as a loss at cost price in this section's profit.</p>}
-        <Field label="Note (optional)" htmlFor="sn2"><Input id="sn2" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+        {mode === "spoilage" && <p className="text-xs text-ink-3">{t("Counted as a loss at cost price in this section's profit.")}</p>}
+        <Field label={t("Note (optional)")} htmlFor="sn2"><Input id="sn2" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
       </div>
     </Sheet>
   );

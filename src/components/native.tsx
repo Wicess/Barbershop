@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Download, RefreshCw, Share, X } from "lucide-react";
+import { t } from "@/core/i18n.ts";
 
 const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(" ");
 
@@ -180,7 +181,7 @@ export function PullToRefresh({ onRefresh }: { onRefresh: () => Promise<void> })
       className="no-print pointer-events-none fixed left-1/2 top-[calc(env(safe-area-inset-top)+3.5rem)] z-30 flex size-10 items-center justify-center rounded-full border border-line bg-surface text-ink-2 shadow-md lg:hidden"
     >
       <RefreshCw ref={icon} className={cx("size-5", busy && "animate-spin")} />
-      <span className="sr-only">{busy ? "Syncing" : ""}</span>
+      <span className="sr-only">{busy ? t("Syncing…") : ""}</span>
     </div>
   );
 }
@@ -248,13 +249,14 @@ export function InstallCard() {
     <div className="animate-fade-in relative mb-4 flex items-center gap-3 rounded-2xl border border-line bg-surface p-4 lg:hidden">
       <img src="/icons/icon-192.png" alt="" width={44} height={44} className="size-11 rounded-xl" />
       <div className="min-w-0 flex-1">
-        <p className="font-semibold">Install the app</p>
+        <p className="font-semibold">{t("Install the app")}</p>
         {ios ? (
           <p className="text-xs text-ink-3">
-            Tap <Share className="inline size-3.5 align-[-2px]" aria-label="Share" /> then “Add to Home Screen”.
+            {/* The icon sits between two halves of one sentence; both halves are translated as a pair. */}
+            {t("Tap")} <Share className="inline size-3.5 align-[-2px]" aria-label={t("Share button")} /> {t("then “Add to Home Screen”.")}
           </p>
         ) : (
-          <p className="text-xs text-ink-3">Opens full screen from your home screen, even offline.</p>
+          <p className="text-xs text-ink-3">{t("Opens full screen from your home screen, even offline.")}</p>
         )}
       </div>
       {!ios && deferredPrompt && (
@@ -268,10 +270,10 @@ export function InstallCard() {
           }}
           className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-on-primary transition-transform active:scale-95"
         >
-          <Download className="size-4" /> Install
+          <Download className="size-4" /> {t("Install")}
         </button>
       )}
-      <button onClick={dismiss} aria-label="Dismiss" className="-mr-1 flex size-9 cursor-pointer items-center justify-center rounded-full text-ink-3">
+      <button onClick={dismiss} aria-label={t("Dismiss")} className="-mr-1 flex size-9 cursor-pointer items-center justify-center rounded-full text-ink-3">
         <X className="size-4" />
       </button>
     </div>

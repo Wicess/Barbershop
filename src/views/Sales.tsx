@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, Printer, ReceiptText, Search } from "lucide-react";
+import { Printer, ReceiptText, Search } from "lucide-react";
 import { useApp, useQuery } from "@/client/app-context.tsx";
 import { setParams } from "@/client/router.ts";
 import { PAYMENT_LABEL } from "@/core/commands.ts";
+import { plural, t, tk } from "@/core/i18n.ts";
 import { addDays, formatDate, formatTime, toBusinessDate } from "@/core/dates.ts";
 import { bpToPercent } from "@/core/money.ts";
 import { paymentBreakdown, saleSplit } from "@/core/reports.ts";
@@ -14,7 +15,7 @@ import { printContent } from "@/components/print.tsx";
 import { itemImage, Photo } from "@/components/media.tsx";
 import { SortButton, SortSheet, SortSummary, sortRows, useSortRules, type SortKey } from "@/components/sort.tsx";
 import {
-  Badge, Button, Empty, Input, Money, PageHeader, Sheet, Spinner, Stat, VoidSheet, cx,
+  Badge, Button, DateInput, Empty, Input, Money, PageHeader, Sheet, Spinner, Stat, VoidSheet, cx,
 } from "@/components/ui.tsx";
 
 interface SaleRow {
@@ -30,13 +31,13 @@ interface SaleRow {
 
 /** What a day's receipts can be sorted by. */
 const SALE_SORT: SortKey<SaleRow>[] = [
-  { id: "time", label: "Time", get: (s) => s.created_at, words: ["Oldest first", "Newest first"] },
-  { id: "amount", label: "Amount", get: (s) => s.total, words: ["Low to high", "High to low"] },
-  { id: "receipt", label: "Receipt number", get: (s) => s.receipt_no, words: ["First to last", "Last to first"] },
-  { id: "customer", label: "Customer", get: (s) => s.customer_name, words: ["A to Z", "Z to A"] },
-  { id: "items", label: "Number of items", get: (s) => (s.items ? s.items.split(", ").length : 0), words: ["Fewest first", "Most first"] },
-  { id: "payment", label: "Payment method", get: (s) => s.methods, words: ["A to Z", "Z to A"] },
-  { id: "status", label: "Status", get: (s) => s.status, words: ["Completed first", "Voided first"] },
+  { id: "time", label: tk("Time"), get: (s) => s.created_at, words: [tk("Oldest first"), tk("Newest first")] },
+  { id: "amount", label: tk("Amount"), get: (s) => s.total, words: [tk("Low to high"), tk("High to low")] },
+  { id: "receipt", label: tk("Receipt number"), get: (s) => s.receipt_no, words: [tk("First to last"), tk("Last to first")] },
+  { id: "customer", label: tk("Customer"), get: (s) => s.customer_name, words: [tk("A to Z"), tk("Z to A")] },
+  { id: "items", label: tk("Number of items"), get: (s) => (s.items ? s.items.split(", ").length : 0), words: [tk("Fewest first"), tk("Most first")] },
+  { id: "payment", label: tk("Payment method"), get: (s) => s.methods, words: [tk("A to Z"), tk("Z to A")] },
+  { id: "status", label: tk("Status"), get: (s) => s.status, words: [tk("Completed first"), tk("Voided first")] },
 ];
 
 export function SalesView({ params }: { params: URLSearchParams }) {
@@ -73,24 +74,14 @@ export function SalesView({ params }: { params: URLSearchParams }) {
   return (
     <div>
       <PageHeader
-        title="Sales"
-        subtitle={date === today ? "Today" : formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+        title={t("Sales")}
+        subtitle={date === today ? t("Today") : formatDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         actions={
           <>
             <SortButton count={sort.rules.length} onClick={() => setSorting(true)} />
             {can("sales.viewAll") && (
-              // Any older date: a round calendar button with the native picker laid over it.
-              <label className="relative flex size-11 cursor-pointer items-center justify-center rounded-full text-ink ring-1 ring-line-strong transition-transform active:scale-90" title="Choose a date">
-                <CalendarDays className="size-5" />
-                <input
-                  type="date"
-                  aria-label="Choose date"
-                  value={date}
-                  max={today}
-                  onChange={(e) => e.target.value && setParams({ date: e.target.value })}
-                  className="absolute inset-0 cursor-pointer opacity-0"
-                />
-              </label>
+              // Any older date: a round calendar button that opens the app's calendar.
+              <DateInput look="icon" label={t("Choose date")} value={date} max={today} onChange={(v) => setParams({ date: v })} />
             )}
           </>
         }
@@ -103,23 +94,23 @@ export function SalesView({ params }: { params: URLSearchParams }) {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat label="Total" value={<Money value={total} />} hint={`${completed.length} sale${completed.length === 1 ? "" : "s"}`} />
+            <Stat label={t("Total")} value={<Money value={total} />} hint={plural(completed.length, "{n} sale", "{n} sales")} />
             {data.methods.map((m) => (
-              <Stat key={m.method} label={PAYMENT_LABEL[m.method] ?? m.method} value={<Money value={m.amount} />} hint={`${m.count} payment${m.count === 1 ? "" : "s"}`} />
+              <Stat key={m.method} label={t(PAYMENT_LABEL[m.method] ?? m.method)} value={<Money value={m.amount} />} hint={plural(m.count, "{n} payment", "{n} payments")} />
             ))}
           </div>
 
           <div className="relative mt-4">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-3" />
-            <Input className="pl-10" placeholder="Search receipt, customer or service" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search sales" />
+            <Input className="pl-10" placeholder={t("Search receipt, customer or service")} value={search} onChange={(e) => setSearch(e.target.value)} aria-label={t("Search sales")} />
           </div>
 
           <div className="mt-3">
             {sales.length > 1 && <SortSummary keys={SALE_SORT} rules={sort.rules} onOpen={() => setSorting(true)} />}
             {sales.length === 0 ? (
-              <Empty icon={<ReceiptText className="size-8" />} title={q ? "No matching sales" : "No sales on this day"} />
+              <Empty icon={<ReceiptText className="size-8" />} title={q ? t("No matching sales") : t("No sales on this day")} />
             ) : (
-              <ul className="stagger space-y-2.5">
+              <ul className="stagger space-y-2.5 xl:grid xl:grid-cols-2 xl:gap-2.5 xl:space-y-0">
                 {sales.map((s) => {
                   const first = (s.items ?? "").split(", ")[0] ?? "";
                   const voided = s.status === "voided";
@@ -127,19 +118,19 @@ export function SalesView({ params }: { params: URLSearchParams }) {
                     <li key={s.id}>
                       <button
                         onClick={() => setParams({ id: s.id })}
-                        className="press flex w-full cursor-pointer items-center gap-3.5 rounded-[22px] bg-surface p-2.5 pr-4 text-left ring-1 ring-line transition-colors hover:bg-surface-2"
+                        className="press flex w-full cursor-pointer items-center gap-3.5 rounded-[22px] bg-surface p-2.5 pr-4 text-left ring-1 ring-line transition-colors hover:bg-surface-2 lg:p-2 lg:pr-4"
                       >
-                        <Photo src={itemImage(first, "")} alt="" className={cx("size-16 shrink-0 rounded-2xl", voided && "grayscale")} />
+                        <Photo src={itemImage(first, "")} alt="" className={cx("size-16 shrink-0 rounded-2xl lg:size-14", voided && "grayscale")} />
                         <span className="min-w-0 flex-1">
-                          <span className={cx("block truncate font-semibold", voided && "text-ink-3 line-through")}>{s.items || "Sale"}</span>
+                          <span className={cx("block truncate font-semibold", voided && "text-ink-3 line-through")}>{s.items ? s.items.split(", ").map((n) => t(n)).join(", ") : t("Sale")}</span>
                           <span className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-3">
                             <span className="num font-semibold text-ink-2">{s.receipt_no}</span>
                             <span aria-hidden>·</span>
                             <span>{formatTime(s.created_at)}</span>
-                            {voided && <Badge tone="negative">Voided</Badge>}
+                            {voided && <Badge tone="negative">{t("Voided")}</Badge>}
                           </span>
                           <span className="mt-0.5 block truncate text-xs text-ink-3">
-                            {(s.methods ?? "").split(",").map((m) => PAYMENT_LABEL[m] ?? m).join(" + ")}
+                            {(s.methods ?? "").split(",").map((m) => t(PAYMENT_LABEL[m] ?? m)).join(" + ")}
                             {s.customer_name ? ` · ${s.customer_name}` : ""}
                           </span>
                         </span>
@@ -167,7 +158,7 @@ function DayStrip({ date, today }: { date: string; today: string }) {
   const end = addDays(date, 3) < today ? addDays(date, 3) : today;
   const days = Array.from({ length: 7 }, (_, i) => addDays(end, i - 6));
   return (
-    <div role="radiogroup" aria-label="Day" className="-mt-1 mb-5 grid grid-cols-7 gap-1.5">
+    <div role="radiogroup" aria-label={t("Day")} className="-mt-1 mb-5 grid grid-cols-7 gap-1.5">
       {days.map((d) => {
         const active = d === date;
         return (
@@ -212,17 +203,17 @@ function SaleDetail({ id, onClose }: { id: string | null; onClose: () => void })
       <Sheet
         open={!!id && !voiding}
         onClose={onClose}
-        title={sale ? `Receipt ${sale.receipt_no}` : "Receipt"}
+        title={sale ? t("Receipt {number}", { number: sale.receipt_no }) : t("Receipt")}
         footer={
           data ? (
             <div className="flex gap-2">
               {can("sale.void") && sale?.status === "completed" && (
                 <Button variant="secondary" className="text-negative" onClick={() => setVoiding(true)}>
-                  Void sale
+                  {t("Void sale")}
                 </Button>
               )}
               <Button block onClick={() => printContent(<ReceiptDoc data={data.receipt} settings={settings} />)}>
-                <Printer className="size-4" /> Print receipt
+                <Printer className="size-4" /> {t("Print receipt")}
               </Button>
             </div>
           ) : undefined
@@ -234,17 +225,19 @@ function SaleDetail({ id, onClose }: { id: string | null; onClose: () => void })
           <div className="space-y-4">
             {sale?.status === "voided" && (
               <div className="rounded-xl bg-negative-soft p-3 text-sm text-negative">
-                Voided{data.voider ? ` by ${data.voider}` : ""}: {sale.void_reason}
+                {data.voider
+                  ? t("Voided by {name}: {reason}", { name: data.voider, reason: sale.void_reason ?? "" })
+                  : t("Voided: {reason}", { reason: sale.void_reason ?? "" })}
               </div>
             )}
             {can("payroll.view") && (
               <div>
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">Who gets what</h3>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">{t("Who gets what")}</h3>
                 <SplitCard split={data.split} />
               </div>
             )}
             <div>
-              {can("payroll.view") && <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">Receipt</h3>}
+              {can("payroll.view") && <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">{t("Receipt")}</h3>}
               <div className="rounded-xl bg-white p-2">
                 <ReceiptDoc data={data.receipt} settings={{ ...settings, paper_width: "a4" }} />
               </div>
@@ -255,12 +248,12 @@ function SaleDetail({ id, onClose }: { id: string | null; onClose: () => void })
       <VoidSheet
         open={voiding}
         onClose={() => setVoiding(false)}
-        title={`Void receipt ${sale?.receipt_no ?? ""}`}
-        onConfirm={(reason) => run("sale.void", { id: id!, reason, business_date: toBusinessDate() }, "Sale voided")}
+        title={t("Void receipt {number}", { number: sale?.receipt_no ?? "" })}
+        onConfirm={(reason) => run("sale.void", { id: id!, reason, business_date: toBusinessDate() }, t("Sale voided"))}
       >
         {sale && (
           <p className="text-sm">
-            Total <Money value={sale.total} className="font-semibold" />. Any drinks on it go back into stock and staff shares are removed.
+            {t("Total")} <Money value={sale.total} className="font-semibold" />. {t("Any drinks on it go back into stock and staff shares are removed.")}
           </p>
         )}
       </VoidSheet>

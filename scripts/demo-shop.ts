@@ -2,7 +2,8 @@
 // activity), through the same /api/setup and /api/sync endpoints a phone uses.
 //
 //   DATABASE_URL=file:data/demo.db npx next dev -p 3200      (a separate server + database)
-//   npx tsx scripts/demo-shop.ts http://localhost:3200
+//   npx tsx scripts/demo-shop.ts http://localhost:3200              (English shop, KES)
+//   npx tsx scripts/demo-shop.ts http://localhost:3200 --cameroon   (French shop, FCFA)
 //
 // It refuses to run against a server that already has a shop, so it can never
 // mix demo records into a real shop's data. Sign in with PIN 1234.
@@ -10,7 +11,11 @@
 import { demoShop } from "../src/core/demo.ts";
 import { toBusinessDate } from "../src/core/dates.ts";
 
-const base = (process.argv[2] ?? "http://localhost:3200").replace(/\/$/, "");
+const base = (process.argv.find((a) => a.startsWith("http")) ?? "http://localhost:3200").replace(/\/$/, "");
+const cameroon = process.argv.includes("--cameroon");
+const shop = cameroon
+  ? { shopName: "Salon Élégance Douala", ownerName: "Christian Kamga", currency: "XAF", lang: "fr" }
+  : { shopName: "Kings Cut Studio", ownerName: "Brian Otieno", currency: "KES", lang: "en" };
 const PIN = "1234";
 
 async function main() {
@@ -23,13 +28,13 @@ async function main() {
   const setup = await fetch(`${base}/api/setup`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ shopName: "Kings Cut Studio", ownerName: "Brian Otieno", currency: "KES", pin: PIN, deviceName: "Demo loader" }),
+    body: JSON.stringify({ ...shop, pin: PIN, deviceName: "Demo loader" }),
   });
   if (!setup.ok) throw new Error(`Setup failed: ${setup.status} ${await setup.text()}`);
   const cookie = setup.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
   const { userId, deviceId } = (await setup.json()) as { userId: string; deviceId: string };
 
-  const { commands } = demoShop(toBusinessDate());
+  const { commands } = demoShop(toBusinessDate(), 2026, { edition: cameroon ? "cameroon" : "default" });
   let ok = 0;
   for (let i = 0; i < commands.length; i += 150) {
     const batch = commands.slice(i, i + 150).map((c, j) => ({
@@ -48,7 +53,7 @@ async function main() {
       else throw new Error(`Command ${r.id} was refused: ${r.error}`);
     }
   }
-  console.log(`Demo shop ready at ${base}: ${ok} records loaded. Sign in as Brian Otieno, PIN ${PIN}.`);
+  console.log(`Demo shop “${shop.shopName}” ready at ${base}: ${ok} records loaded. Sign in as ${shop.ownerName}, PIN ${PIN}.`);
 }
 
 main().catch((e) => {

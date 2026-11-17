@@ -2,13 +2,15 @@
 
 import {
   forwardRef, useEffect, useId, useLayoutEffect, useRef, useState,
-  type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes,
+  type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, Delete, Loader2, X } from "lucide-react";
 import { useApp } from "@/client/app-context.tsx";
+import { plural, t, tMessage } from "@/core/i18n.ts";
 import { formatMoney, parseMoney, toInputValue } from "@/core/money.ts";
 import { haptic, useBackTarget, useLargeTitle, useMediaQuery } from "./native.tsx";
+import { DateInput, inputClass } from "./pickers.tsx";
 
 export function cx(...parts: (string | false | null | undefined)[]) {
   return parts.filter(Boolean).join(" ");
@@ -36,7 +38,7 @@ export const Button = forwardRef<
       disabled={disabled || loading}
       className={cx(
         "inline-flex cursor-pointer select-none items-center justify-center gap-2 font-semibold tracking-[-0.01em] transition-[transform,filter,background-color,box-shadow] duration-150 ease-[var(--ease-out)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none disabled:active:scale-100",
-        size === "lg" ? "min-h-14 rounded-2xl px-6 text-base" : size === "sm" ? "min-h-9 rounded-xl px-3 text-sm" : "min-h-12 rounded-2xl px-4 text-sm",
+        size === "lg" ? "min-h-14 rounded-2xl px-6 text-base lg:min-h-12" : size === "sm" ? "min-h-9 rounded-xl px-3 text-sm" : "min-h-12 rounded-2xl px-4 text-sm lg:min-h-11 lg:rounded-xl",
         VARIANTS[variant],
         block && "w-full",
         className,
@@ -78,7 +80,7 @@ export function PageHeader({
   return (
     <header className="no-print animate-rise mb-5 flex items-start gap-2">
       {goBack && (
-        <IconButton label="Back" onClick={goBack} className={cx("-ml-1 mt-0.5 bg-surface shadow-card ring-1 ring-line", !back && "lg:hidden")}>
+        <IconButton label={t("Back")} onClick={goBack} className={cx("-ml-1 mt-0.5 bg-surface shadow-card ring-1 ring-line", !back && "lg:hidden")}>
           <ChevronLeft className="size-6" />
         </IconButton>
       )}
@@ -91,6 +93,12 @@ export function PageHeader({
   );
 }
 
+/** The brand mark: orange crossed blades, cut out on a transparent background. Decorative: a name is always written beside it. */
+export function LogoMark({ className, white }: { className?: string; white?: boolean }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={white ? "/brand/logo-white.png" : "/brand/logo.png"} alt="" aria-hidden draggable={false} className={cx("pointer-events-none select-none object-contain", className)} />;
+}
+
 export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cx("rounded-3xl bg-surface shadow-card ring-1 ring-line/70", className)} {...rest}>
@@ -101,7 +109,7 @@ export function Card({ className, children, ...rest }: { className?: string; chi
 
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="mb-3 mt-8 flex min-h-11 items-center justify-between gap-2">
+    <div className="mb-3 mt-8 flex min-h-11 items-center justify-between gap-2 lg:mt-6">
       <h2 className="text-[19px] font-bold tracking-[-0.02em] text-ink">{children}</h2>
       {action}
     </div>
@@ -153,9 +161,9 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
 }
 
 /** Skeleton placeholder shaped like a typical screen: a row of figures, then a list. */
-export function Spinner({ label = "Loading" }: { label?: string }) {
+export function Spinner({ label }: { label?: string }) {
   return (
-    <div role="status" aria-label={label} className="animate-fade-in space-y-3 py-1">
+    <div role="status" aria-label={label ?? t("Loading")} className="animate-fade-in space-y-3 py-1">
       <div className="grid grid-cols-2 gap-3">
         {[0, 1].map((i) => (
           <div key={i} className="h-[112px] animate-pulse rounded-3xl bg-surface-2" />
@@ -183,8 +191,8 @@ export function Field({
   label, hint, error, children, htmlFor,
 }: { label: string; hint?: ReactNode; error?: string | null; children: ReactNode; htmlFor?: string }) {
   return (
-    <div className="space-y-1.5">
-      <label htmlFor={htmlFor} className="block text-sm font-medium text-ink-2">
+    <div className="space-y-1.5 lg:space-y-1">
+      <label htmlFor={htmlFor} className="block text-sm font-medium text-ink-2 lg:text-[13px]">
         {label}
       </label>
       {children}
@@ -199,23 +207,30 @@ export function Field({
   );
 }
 
-const inputClass =
-  "block w-full min-h-[52px] rounded-2xl border border-transparent bg-surface-2 px-4 text-base text-ink placeholder:text-ink-3 transition-[background-color,border-color,box-shadow] duration-200 hover:border-line-strong focus:border-primary focus:bg-surface focus:outline-none focus:ring-4 focus:ring-primary/15 disabled:opacity-50";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
   { className, ...rest },
   ref,
 ) {
+  // Dates use the app's own calendar instead of the browser's grey picker.
+  if (rest.type === "date") {
+    const { value, min, max, onChange, id } = rest;
+    return (
+      <DateInput
+        id={id}
+        value={String(value ?? "")}
+        min={min === undefined ? undefined : String(min)}
+        max={max === undefined ? undefined : String(max)}
+        label={rest["aria-label"]}
+        className={className}
+        onChange={(v) => onChange?.({ target: { value: v }, currentTarget: { value: v } } as unknown as React.ChangeEvent<HTMLInputElement>)}
+      />
+    );
+  }
   return <input ref={ref} className={cx(inputClass, className)} {...rest} />;
 });
 
-export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select className={cx(inputClass, "appearance-none bg-[length:16px] pr-9", className)} {...rest}>
-      {children}
-    </select>
-  );
-}
+export { Select, DateInput } from "./pickers.tsx";
 
 export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea {...props} className={cx(inputClass, "min-h-20 py-3", props.className)} />;
@@ -249,9 +264,9 @@ export function MoneyInput({
         className="num pl-14 text-lg font-semibold"
         value={text}
         onChange={(e) => {
-          const t = e.target.value;
-          setText(t);
-          const parsed = parseMoney(t, settings.currency);
+          const typed = e.target.value;
+          setText(typed);
+          const parsed = parseMoney(typed, settings.currency);
           last.current = parsed;
           onChange(parsed);
         }}
@@ -482,7 +497,7 @@ export function Sheet({
           </div>
           <div className="flex items-center justify-between gap-2 border-b border-line px-5 pb-3 pt-1 sm:pt-3">
             <h2 className="text-xl font-bold tracking-[-0.02em]">{title}</h2>
-            <IconButton label="Close" onClick={requestClose} data-close className="-mr-2">
+            <IconButton label={t("Close")} onClick={requestClose} data-close className="-mr-2">
               <X className="size-5" />
             </IconButton>
           </div>
@@ -512,7 +527,7 @@ export function VoidSheet({
       footer={
         <div className="flex gap-2">
           <Button variant="secondary" block onClick={onClose}>
-            Keep it
+            {t("Keep it")}
           </Button>
           <Button
             variant="danger"
@@ -526,7 +541,7 @@ export function VoidSheet({
               if (ok) onClose();
             }}
           >
-            Void
+            {t("Void")}
           </Button>
         </div>
       }
@@ -534,10 +549,10 @@ export function VoidSheet({
       <div className="space-y-4">
         {children}
         <p className="text-sm text-ink-3">
-          Voiding keeps the record in the history, marked as cancelled, and removes it from all totals. The owner can see who voided it and why.
+          {t("Voiding keeps the record in the history, marked as cancelled, and removes it from all totals. The owner can see who voided it and why.")}
         </p>
-        <Field label="Reason" htmlFor="void-reason">
-          <Input id="void-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Entered twice by mistake" />
+        <Field label={t("Reason")} htmlFor="void-reason">
+          <Input id="void-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("e.g. Entered twice by mistake")} />
         </Field>
       </div>
     </Sheet>
@@ -591,7 +606,7 @@ export function PinPad({
   const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
   return (
     <div className="mx-auto w-full max-w-xs">
-      <div ref={dots} className="mb-2 flex h-6 items-center justify-center gap-3" aria-label={`${pin.length} digits entered`}>
+      <div ref={dots} className="mb-2 flex h-6 items-center justify-center gap-3" aria-label={plural(pin.length, "{n} digit entered", "{n} digits entered")}>
         {Array.from({ length: Math.max(length, pin.length) }).map((_, i) => (
           <span
             key={i}
@@ -602,25 +617,25 @@ export function PinPad({
           />
         ))}
       </div>
-      <p className="mb-4 h-5 text-center text-sm text-negative" role="alert">
-        {error ?? ""}
+      <p className="mb-[clamp(6px,1.6dvh,16px)] h-5 text-center text-sm text-negative" role="alert">
+        {error ? tMessage(error) : ""}
       </p>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-[clamp(8px,1.3dvh,12px)]">
         {keys.map((k) => (
           <PadKey key={k} onClick={() => press(k)}>
             {k}
           </PadKey>
         ))}
-        <PadKey onClick={() => setPin((p) => p.slice(0, -1))} label="Delete">
+        <PadKey onClick={() => setPin((p) => p.slice(0, -1))} label={t("Delete last digit")}>
           <Delete className="size-6" />
         </PadKey>
         <PadKey onClick={() => press("0")}>0</PadKey>
         <button
           disabled={pin.length < 4 || busy}
           onClick={() => onSubmit(pin)}
-          className="flex h-16 cursor-pointer items-center justify-center rounded-[22px] bg-primary text-base font-bold text-on-primary shadow-[inset_0_1px_0_rgb(255_255_255/0.22),var(--shadow-primary)] transition-[transform,background-color,color,box-shadow] duration-200 active:scale-95 disabled:cursor-default disabled:bg-surface disabled:text-ink-3 disabled:shadow-none disabled:ring-1 disabled:ring-line"
+          className="flex h-[clamp(46px,7dvh,64px)] cursor-pointer items-center justify-center rounded-[22px] bg-primary text-base font-bold text-on-primary shadow-[inset_0_1px_0_rgb(255_255_255/0.22),var(--shadow-primary)] transition-[transform,background-color,color,box-shadow] duration-200 active:scale-95 disabled:cursor-default disabled:bg-surface disabled:text-ink-3 disabled:shadow-none disabled:ring-1 disabled:ring-line"
         >
-          {busy ? <Loader2 className="size-5 animate-spin" /> : "OK"}
+          {busy ? <Loader2 className="size-5 animate-spin" /> : t("OK")}
         </button>
       </div>
     </div>
@@ -632,7 +647,7 @@ function PadKey({ children, onClick, label }: { children: ReactNode; onClick: ()
     <button
       aria-label={label}
       onClick={onClick}
-      className="num flex h-16 cursor-pointer items-center justify-center rounded-[22px] bg-surface text-2xl font-semibold text-ink shadow-card ring-1 ring-line transition-[transform,background-color] duration-150 active:scale-95 active:bg-surface-2"
+      className="num flex h-[clamp(46px,7dvh,64px)] cursor-pointer items-center justify-center rounded-[22px] bg-surface text-2xl font-semibold text-ink shadow-card ring-1 ring-line transition-[transform,background-color] duration-150 active:scale-95 active:bg-surface-2"
     >
       {children}
     </button>
@@ -677,10 +692,10 @@ export function CountUp({ value, format, duration = 900, className }: { value: n
     const a = from.current;
     let raf = 0;
     const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 4);
+      const progress = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - progress, 4);
       setShown(Math.round(a + (value - a) * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
+      if (progress < 1) raf = requestAnimationFrame(tick);
       else from.current = value;
     };
     raf = requestAnimationFrame(tick);

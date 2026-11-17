@@ -1,3 +1,5 @@
+import { locale } from "./i18n.ts";
+
 // Business dates are the shop's local calendar day as "YYYY-MM-DD"; months are "YYYY-MM".
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -46,19 +48,19 @@ export function dayCount(from: string, to: string): number {
 }
 
 export function formatDate(date: string, opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }): string {
-  return parseDate(date).toLocaleDateString(undefined, opts);
+  return parseDate(date).toLocaleDateString(locale(), opts);
 }
 
 export function formatMonth(month: string): string {
-  return parseDate(`${month}-01`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  return parseDate(`${month}-01`).toLocaleDateString(locale(), { month: "long", year: "numeric" });
 }
 
 export function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
 }
 
 export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString(locale(), {
     day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
   });
 }

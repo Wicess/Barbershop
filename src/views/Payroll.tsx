@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Printer, Wallet } from "lucide-react";
 import { useApp, useQuery } from "@/client/app-context.tsx";
 import { setParams } from "@/client/router.ts";
@@ -8,6 +8,7 @@ import { ADJUSTMENT_LABEL, PAYMENT_LABEL } from "@/core/commands.ts";
 import { addMonths, currentMonth, formatDate, formatMonth, toBusinessDate } from "@/core/dates.ts";
 import { bpToPercent, formatMoney } from "@/core/money.ts";
 import { payroll, type PayrollRow } from "@/core/reports.ts";
+import { locale, plural, t } from "@/core/i18n.ts";
 import type { Settings } from "@/core/settings.ts";
 import { PageSize, printContent } from "@/components/print.tsx";
 import {
@@ -21,25 +22,25 @@ export function PayrollView({ params }: { params: URLSearchParams }) {
   const { data: rows } = useQuery((db) => payroll(db, month), [month]);
 
   const totals = (rows ?? []).reduce(
-    (t, r) => ({ revenue: t.revenue + r.revenue, earned: t.earned + r.earned, net: t.net + r.netPay, paid: t.paid + r.paid }),
+    (acc, r) => ({ revenue: acc.revenue + r.revenue, earned: acc.earned + r.earned, net: acc.net + r.netPay, paid: acc.paid + r.paid }),
     { revenue: 0, earned: 0, net: 0, paid: 0 },
   );
 
   return (
     <div>
       <PageHeader
-        title="Staff pay"
+        title={t("Staff pay")}
         subtitle={formatMonth(month)}
         actions={
           <>
-            <IconButton label="Previous month" onClick={() => setParams({ m: addMonths(month, -1), id: null })}>
+            <IconButton label={t("Previous month")} onClick={() => setParams({ m: addMonths(month, -1), id: null })}>
               <ChevronLeft className="size-5" />
             </IconButton>
-            <IconButton label="Next month" disabled={month >= currentMonth()} onClick={() => setParams({ m: addMonths(month, 1), id: null })}>
+            <IconButton label={t("Next month")} disabled={month >= currentMonth()} onClick={() => setParams({ m: addMonths(month, 1), id: null })}>
               <ChevronRight className="size-5" />
             </IconButton>
             {rows && rows.length > 0 && (
-              <IconButton label="Print pay sheet" onClick={() => printContent(<PaySheetPrint rows={rows} month={month} settings={settings} />)}>
+              <IconButton label={t("Print pay sheet")} onClick={() => printContent(<PaySheetPrint rows={rows} month={month} settings={settings} />)}>
                 <Printer className="size-5" />
               </IconButton>
             )}
@@ -50,17 +51,17 @@ export function PayrollView({ params }: { params: URLSearchParams }) {
       {!rows ? (
         <Spinner />
       ) : rows.length === 0 ? (
-        <Empty icon={<Wallet className="size-8" />} title="No staff yet">Add staff, record sales, and their pay is calculated here automatically.</Empty>
+        <Empty icon={<Wallet className="size-8" />} title={t("No staff yet")}>{t("Add staff, record sales, and their pay is calculated here automatically.")}</Empty>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Stat label="Revenue by staff" value={<Money value={totals.revenue} />} />
-            <Stat label="Staff share earned" value={<Money value={totals.earned} />} hint={`Shop keeps ${formatMoney(totals.revenue - totals.earned, settings.currency)}`} />
-            <Stat label="Net pay due" value={<Money value={totals.net} />} hint="After salary, bonuses, advances" />
-            <Stat label="Still to pay" value={<Money value={totals.net - totals.paid} />} tone={totals.net - totals.paid > 0 ? "accent" : undefined} />
+            <Stat label={t("Revenue by staff")} value={<Money value={totals.revenue} />} />
+            <Stat label={t("Staff share earned")} value={<Money value={totals.earned} />} hint={t("Shop keeps {amount}", { amount: formatMoney(totals.revenue - totals.earned, settings.currency) })} />
+            <Stat label={t("Net pay due")} value={<Money value={totals.net} />} hint={t("After salary, bonuses, advances")} />
+            <Stat label={t("Still to pay")} value={<Money value={totals.net - totals.paid} />} tone={totals.net - totals.paid > 0 ? "accent" : undefined} />
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {rows.map((r) => (
               <button
                 key={r.staff_id}
@@ -70,23 +71,23 @@ export function PayrollView({ params }: { params: URLSearchParams }) {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-base font-bold">{r.name}</div>
-                    <div className="text-xs text-ink-3">{r.specialty ?? "Staff"} · {bpToPercent(r.commission_bp)} share</div>
+                    <div className="text-xs text-ink-3">{t("{role} · {percent} share", { role: t(r.specialty ?? "Staff"), percent: bpToPercent(r.commission_bp) })}</div>
                   </div>
-                  {r.balance <= 0 && r.netPay > 0 ? <Badge tone="positive">Paid</Badge> : r.paid > 0 ? <Badge tone="warning">Part paid</Badge> : null}
+                  {r.balance <= 0 && r.netPay > 0 ? <Badge tone="positive">{t("Paid")}</Badge> : r.paid > 0 ? <Badge tone="warning">{t("Part paid")}</Badge> : null}
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                  <Mini label="Clients" value={r.clients} />
-                  <Mini label="Services" value={r.services} />
-                  <Mini label="Brought in" value={<Money value={r.revenue} />} />
+                  <Mini label={t("Clients")} value={r.clients} />
+                  <Mini label={t("Services")} value={r.services} />
+                  <Mini label={t("Brought in")} value={<Money value={r.revenue} />} />
                 </div>
                 <div className="mt-3 flex items-end justify-between border-t border-line pt-3">
                   <div className="text-sm text-ink-3">
-                    Earned <Money value={r.earned} className="font-semibold text-ink" />
-                    {r.tips > 0 && <> · tips <Money value={r.tips} /></>}
-                    {r.advances > 0 && <> · advances <Money value={-r.advances} /></>}
+                    {rich(t("Earned {amount}"), { amount: <Money value={r.earned} className="font-semibold text-ink" /> })}
+                    {r.tips > 0 && <> · {rich(t("tips {amount}"), { amount: <Money value={r.tips} /> })}</>}
+                    {r.advances > 0 && <> · {rich(t("advances {amount}"), { amount: <Money value={-r.advances} /> })}</>}
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-ink-3">{r.balance > 0 ? "To pay" : "Net pay"}</div>
+                    <div className="text-xs text-ink-3">{r.balance > 0 ? t("To pay") : t("Net pay")}</div>
                     <Money value={r.balance > 0 ? r.balance : r.netPay} className="text-lg font-bold" />
                   </div>
                 </div>
@@ -101,7 +102,7 @@ export function PayrollView({ params }: { params: URLSearchParams }) {
   );
 }
 
-function Mini({ label, value }: { label: string; value: React.ReactNode }) {
+function Mini({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="rounded-xl bg-surface-2 px-2 py-2">
       <div className="num text-base font-bold">{value}</div>
@@ -145,11 +146,11 @@ function StaffPaySheet({ row, month, onClose }: { row: PayrollRow | null; month:
         footer={
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => printContent(<PayslipPrint row={row} month={month} settings={settings} />)}>
-              <Printer className="size-4" /> Payslip
+              <Printer className="size-4" /> {t("Payslip")}
             </Button>
             {can("payroll.pay") && (
               <Button className="flex-1" onClick={() => setAdding("payout")} disabled={row.balance <= 0}>
-                Record payment
+                {t("Record payment")}
               </Button>
             )}
           </div>
@@ -157,61 +158,62 @@ function StaffPaySheet({ row, month, onClose }: { row: PayrollRow | null; month:
       >
         <div className="space-y-5">
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">Work this month</h3>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">{t("Work this month")}</h3>
             <table className="num w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-ink-3">
-                  <th className="py-1 font-semibold">Section</th>
-                  <th className="py-1 text-right font-semibold">Services</th>
-                  <th className="py-1 text-right font-semibold">Brought in</th>
-                  <th className="py-1 text-right font-semibold">Share</th>
+                  <th className="py-1 font-semibold">{t("Section")}</th>
+                  <th className="py-1 text-right font-semibold">{t("Services")}</th>
+                  <th className="py-1 text-right font-semibold">{t("Brought in")}</th>
+                  <th className="py-1 text-right font-semibold">{t("Share")}</th>
                 </tr>
               </thead>
               <tbody>
                 {row.byDepartment.map((d) => (
                   <tr key={d.department} className="border-t border-line">
-                    <td className="py-2">{d.department}</td>
+                    <td className="py-2">{t(d.department)}</td>
                     <td className="py-2 text-right">{d.services}</td>
                     <td className="py-2 text-right"><Money value={d.revenue} /></td>
                     <td className="py-2 text-right font-semibold"><Money value={d.earned} /></td>
                   </tr>
                 ))}
                 {row.byDepartment.length === 0 && (
-                  <tr><td colSpan={4} className="py-3 text-center text-ink-3">No services this month.</td></tr>
+                  <tr><td colSpan={4} className="py-3 text-center text-ink-3">{t("No services this month.")}</td></tr>
                 )}
               </tbody>
             </table>
             <p className="mt-2 text-xs text-ink-3">
-              {row.clients} client{row.clients === 1 ? "" : "s"}. Out of <Money value={row.revenue} /> brought in, the shop keeps <Money value={row.shopShare} />.
+              {plural(row.clients, "{n} client", "{n} clients")}.{" "}
+              {rich(t("Out of {revenue} brought in, the shop keeps {shop}."), { revenue: <Money value={row.revenue} />, shop: <Money value={row.shopShare} /> })}
             </p>
           </div>
 
           <div className="rounded-2xl bg-surface-2 p-4">
-            {line("Share earned", row.earned)}
-            {row.tips > 0 && line("Tips from customers", row.tips)}
-            {row.baseSalary > 0 && line("Monthly salary", row.baseSalary)}
-            {row.bonuses > 0 && line("Bonuses", row.bonuses)}
-            {row.deductions > 0 && line("Deductions", -row.deductions)}
-            {row.advances > 0 && line("Advances already taken", -row.advances)}
-            {line("Net pay", row.netPay, true)}
-            {row.paid > 0 && line("Paid so far", -row.paid)}
-            {row.paid > 0 && line(row.balance >= 0 ? "Balance to pay" : "Overpaid", row.balance, true)}
+            {line(t("Share earned"), row.earned)}
+            {row.tips > 0 && line(t("Tips from customers"), row.tips)}
+            {row.baseSalary > 0 && line(t("Monthly salary"), row.baseSalary)}
+            {row.bonuses > 0 && line(t("Bonuses"), row.bonuses)}
+            {row.deductions > 0 && line(t("Deductions"), -row.deductions)}
+            {row.advances > 0 && line(t("Advances already taken"), -row.advances)}
+            {line(t("Net pay"), row.netPay, true)}
+            {row.paid > 0 && line(t("Paid so far"), -row.paid)}
+            {row.paid > 0 && line(row.balance >= 0 ? t("Balance to pay") : t("Overpaid"), row.balance, true)}
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {can("staff.adjust") && <Chip onClick={() => setAdding("advance")}>+ Advance</Chip>}
-            {can("staff.setPay") && <Chip onClick={() => setAdding("bonus")}>+ Bonus</Chip>}
-            {can("staff.setPay") && <Chip onClick={() => setAdding("deduction")}>+ Deduction</Chip>}
+            {can("staff.adjust") && <Chip onClick={() => setAdding("advance")}>{t("+ Advance")}</Chip>}
+            {can("staff.setPay") && <Chip onClick={() => setAdding("bonus")}>{t("+ Bonus")}</Chip>}
+            {can("staff.setPay") && <Chip onClick={() => setAdding("deduction")}>{t("+ Deduction")}</Chip>}
           </div>
 
           {entries && (entries.adj.length > 0 || entries.pays.length > 0) && (
             <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">Entries</h3>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">{t("Entries")}</h3>
               <ul className="divide-y divide-line rounded-2xl border border-line">
                 {entries.adj.map((a) => (
                   <EntryRow
                     key={a.id}
-                    label={ADJUSTMENT_LABEL[a.kind]}
+                    label={t(ADJUSTMENT_LABEL[a.kind] ?? a.kind)}
                     detail={`${formatDate(a.business_date)}${a.note ? ` · ${a.note}` : ""}`}
                     amount={a.kind === "bonus" ? a.amount : -a.amount}
                     voided={a.voided_at ? a.void_reason : null}
@@ -221,7 +223,7 @@ function StaffPaySheet({ row, month, onClose }: { row: PayrollRow | null; month:
                 {entries.pays.map((p) => (
                   <EntryRow
                     key={p.id}
-                    label={`Paid (${PAYMENT_LABEL[p.method] ?? p.method})`}
+                    label={t("Paid ({method})", { method: t(PAYMENT_LABEL[p.method] ?? p.method) })}
                     detail={`${formatDate(p.business_date)}${p.note ? ` · ${p.note}` : ""}`}
                     amount={p.amount}
                     voided={p.voided_at ? p.void_reason : null}
@@ -242,8 +244,8 @@ function StaffPaySheet({ row, month, onClose }: { row: PayrollRow | null; month:
         onSave={async ({ amount, note, paidFrom, method }) => {
           const base = { id: crypto.randomUUID(), staff_id: row.staff_id, month, amount, note, paid_from: paidFrom, business_date: toBusinessDate() };
           const ok = adding === "payout"
-            ? await run("payout.create", { ...base, method }, "Payment recorded")
-            : await run("adjustment.create", { ...base, kind: adding }, `${ADJUSTMENT_LABEL[adding!]} recorded`);
+            ? await run("payout.create", { ...base, method }, t("Payment recorded"))
+            : await run("adjustment.create", { ...base, kind: adding }, t("{kind} recorded", { kind: t(ADJUSTMENT_LABEL[adding!]) }));
           if (ok) setAdding(null);
         }}
       />
@@ -251,11 +253,11 @@ function StaffPaySheet({ row, month, onClose }: { row: PayrollRow | null; month:
       <VoidSheet
         open={!!voiding}
         onClose={() => setVoiding(null)}
-        title="Void entry"
+        title={t("Void entry")}
         onConfirm={(reason) =>
           voiding!.table === "payout"
-            ? run("payout.void", { id: voiding!.id, reason }, "Voided")
-            : run("adjustment.void", { id: voiding!.id, reason }, "Voided")
+            ? run("payout.void", { id: voiding!.id, reason }, t("Voided"))
+            : run("adjustment.void", { id: voiding!.id, reason }, t("Voided"))
         }
       />
     </>
@@ -269,12 +271,12 @@ function EntryRow({
     <li className="flex items-center gap-3 px-4 py-2.5">
       <div className="min-w-0 flex-1">
         <div className={cx("text-sm font-semibold", voided && "text-ink-3 line-through")}>{label}</div>
-        <div className="truncate text-xs text-ink-3">{voided ? `Voided: ${voided}` : detail}</div>
+        <div className="truncate text-xs text-ink-3">{voided ? t("Cancelled: {reason}", { reason: voided }) : detail}</div>
       </div>
       <Money value={amount} className={cx("font-semibold", voided && "text-ink-3 line-through")} />
       {onVoid && !voided && (
         <button className="min-h-11 cursor-pointer px-2 text-xs font-semibold text-negative" onClick={onVoid}>
-          Void
+          {t("Void")}
         </button>
       )}
     </li>
@@ -304,7 +306,7 @@ function MoneyEntrySheet({
     }
   }, [kind, defaultAmount]);
   if (!kind) return null;
-  const titles = { advance: "Give an advance", bonus: "Add a bonus", deduction: "Add a deduction", payout: "Record payment" };
+  const titles = { advance: t("Give an advance"), bonus: t("Add a bonus"), deduction: t("Add a deduction"), payout: t("Record payment") };
   const takesCash = kind === "advance" || kind === "payout";
   return (
     <Sheet
@@ -323,32 +325,32 @@ function MoneyEntrySheet({
             setBusy(false);
           }}
         >
-          Save
+          {t("Save")}
         </Button>
       }
     >
       <div className="space-y-4">
-        <Field label="Amount" htmlFor="amt" hint={kind === "advance" ? "Taken off this month's pay automatically." : kind === "deduction" ? "e.g. a fine or damaged item. Reduces net pay." : undefined}>
+        <Field label={t("Amount")} htmlFor="amt" hint={kind === "advance" ? t("Taken off this month's pay automatically.") : kind === "deduction" ? t("e.g. a fine or damaged item. Reduces net pay.") : undefined}>
           <MoneyInput id="amt" value={amount} onChange={setAmount} autoFocus />
         </Field>
         {kind === "payout" && (
-          <Field label="Paid by">
+          <Field label={t("Paid by")}>
             <div className="flex flex-wrap gap-2">
               {["cash", "mobile", "bank"].map((m) => (
-                <Chip key={m} active={method === m} onClick={() => setMethod(m)}>{PAYMENT_LABEL[m]}</Chip>
+                <Chip key={m} active={method === m} onClick={() => setMethod(m)}>{t(PAYMENT_LABEL[m])}</Chip>
               ))}
             </div>
           </Field>
         )}
         {takesCash && (
-          <Field label="Money taken from" hint="If it came out of the cash drawer, the day's cash count accounts for it.">
+          <Field label={t("Money taken from")} hint={t("If it came out of the cash drawer, the day's cash count accounts for it.")}>
             <div className="flex gap-2">
-              <Chip active={paidFrom === "till"} onClick={() => setPaidFrom("till")}>Cash drawer</Chip>
-              <Chip active={paidFrom === "other"} onClick={() => setPaidFrom("other")}>Elsewhere</Chip>
+              <Chip active={paidFrom === "till"} onClick={() => setPaidFrom("till")}>{t("Cash drawer")}</Chip>
+              <Chip active={paidFrom === "other"} onClick={() => setPaidFrom("other")}>{t("Elsewhere")}</Chip>
             </div>
           </Field>
         )}
-        <Field label="Note (optional)" htmlFor="note">
+        <Field label={t("Note (optional)")} htmlFor="note">
           <Input id="note" value={note} onChange={(e) => setNote(e.target.value)} />
         </Field>
       </div>
@@ -362,28 +364,28 @@ function PayslipPrint({ row, month, settings }: { row: PayrollRow; month: string
     <div className="report-print">
       <PageSize size={settings.paper_width === "a4" ? "a4" : settings.paper_width} />
       <h1 style={{ fontSize: 16, fontWeight: 700 }}>{settings.shop_name}</h1>
-      <p>Payslip · {row.name} · {formatMonth(month)}</p>
+      <p>{t("Payslip · {name} · {month}", { name: row.name, month: formatMonth(month) })}</p>
       <table style={{ marginTop: 8 }}>
         <tbody>
-          <tr><td>Clients served</td><td className="r">{row.clients}</td></tr>
-          <tr><td>Services done</td><td className="r">{row.services}</td></tr>
+          <tr><td>{t("Clients served")}</td><td className="r">{row.clients}</td></tr>
+          <tr><td>{t("Services done")}</td><td className="r">{row.services}</td></tr>
           {row.byDepartment.map((d) => (
-            <tr key={d.department}><td style={{ paddingLeft: 12 }}>{d.department}: {d.services} · {m(d.revenue)}</td><td className="r">{m(d.earned)}</td></tr>
+            <tr key={d.department}><td style={{ paddingLeft: 12 }}>{t("{section}: {count} · {amount}", { section: t(d.department), count: d.services, amount: m(d.revenue) })}</td><td className="r">{m(d.earned)}</td></tr>
           ))}
-          <tr><td>Total brought in</td><td className="r">{m(row.revenue)}</td></tr>
-          <tr><td>Share rate</td><td className="r">{bpToPercent(row.commission_bp)}</td></tr>
-          <tr><td><b>Share earned</b></td><td className="r"><b>{m(row.earned)}</b></td></tr>
-          {row.tips > 0 && <tr><td>Tips from customers</td><td className="r">{m(row.tips)}</td></tr>}
-          {row.baseSalary > 0 && <tr><td>Monthly salary</td><td className="r">{m(row.baseSalary)}</td></tr>}
-          {row.bonuses > 0 && <tr><td>Bonuses</td><td className="r">{m(row.bonuses)}</td></tr>}
-          {row.deductions > 0 && <tr><td>Deductions</td><td className="r">−{m(row.deductions)}</td></tr>}
-          {row.advances > 0 && <tr><td>Advances</td><td className="r">−{m(row.advances)}</td></tr>}
-          <tr><td><b>Net pay</b></td><td className="r"><b>{m(row.netPay)}</b></td></tr>
-          <tr><td>Paid</td><td className="r">{m(row.paid)}</td></tr>
-          <tr><td><b>Balance</b></td><td className="r"><b>{m(row.balance)}</b></td></tr>
+          <tr><td>{t("Total brought in")}</td><td className="r">{m(row.revenue)}</td></tr>
+          <tr><td>{t("Share rate")}</td><td className="r">{bpToPercent(row.commission_bp)}</td></tr>
+          <tr><td><b>{t("Share earned")}</b></td><td className="r"><b>{m(row.earned)}</b></td></tr>
+          {row.tips > 0 && <tr><td>{t("Tips from customers")}</td><td className="r">{m(row.tips)}</td></tr>}
+          {row.baseSalary > 0 && <tr><td>{t("Monthly salary")}</td><td className="r">{m(row.baseSalary)}</td></tr>}
+          {row.bonuses > 0 && <tr><td>{t("Bonuses")}</td><td className="r">{m(row.bonuses)}</td></tr>}
+          {row.deductions > 0 && <tr><td>{t("Deductions")}</td><td className="r">−{m(row.deductions)}</td></tr>}
+          {row.advances > 0 && <tr><td>{t("Advances")}</td><td className="r">−{m(row.advances)}</td></tr>}
+          <tr><td><b>{t("Net pay")}</b></td><td className="r"><b>{m(row.netPay)}</b></td></tr>
+          <tr><td>{t("Paid")}</td><td className="r">{m(row.paid)}</td></tr>
+          <tr><td><b>{t("Balance")}</b></td><td className="r"><b>{m(row.balance)}</b></td></tr>
         </tbody>
       </table>
-      <p style={{ marginTop: 24 }}>Received by: ____________________ &nbsp; Date: __________</p>
+      <p style={{ marginTop: 24 }}>{t("Received by: {line}", { line: "____________________" })} &nbsp; {t("Date: {line}", { line: "__________" })}</p>
     </div>
   );
 }
@@ -393,14 +395,14 @@ function PaySheetPrint({ rows, month, settings }: { rows: PayrollRow[]; month: s
   return (
     <div className="report-print">
       <PageSize size="a4" />
-      <h1 style={{ fontSize: 18, fontWeight: 700 }}>{settings.shop_name} — Staff pay, {formatMonth(month)}</h1>
-      <p>Printed {new Date().toLocaleString()}</p>
+      <h1 style={{ fontSize: 18, fontWeight: 700 }}>{settings.shop_name} — {t("Staff pay, {month}", { month: formatMonth(month) })}</h1>
+      <p>{t("Printed {when}", { when: new Date().toLocaleString(locale()) })}</p>
       <table style={{ marginTop: 12 }}>
         <thead>
           <tr>
-            <th>Name</th><th className="r">Clients</th><th className="r">Services</th><th className="r">Brought in</th><th className="r">Rate</th>
-            <th className="r">Share</th><th className="r">Salary</th><th className="r">Bonus</th><th className="r">Deduct.</th><th className="r">Advances</th>
-            <th className="r">Net pay</th><th className="r">Paid</th><th className="r">Balance</th>
+            <th>{t("Name")}</th><th className="r">{t("Clients")}</th><th className="r">{t("Services")}</th><th className="r">{t("Brought in")}</th><th className="r">{t("Rate")}</th>
+            <th className="r">{t("Share")}</th><th className="r">{t("Salary")}</th><th className="r">{t("Bonus")}</th><th className="r">{t("Deduct.")}</th><th className="r">{t("Advances")}</th>
+            <th className="r">{t("Net pay")}</th><th className="r">{t("Paid")}</th><th className="r">{t("Balance")}</th>
           </tr>
         </thead>
         <tbody>
@@ -416,4 +418,12 @@ function PaySheetPrint({ rows, month, settings }: { rows: PayrollRow[]; month: s
       </table>
     </div>
   );
+}
+
+/** Put React nodes into a translated sentence at its {placeholders}. */
+function rich(text: string, nodes: Record<string, ReactNode>) {
+  return text.split(/(\{\w+\})/).map((part, i) => {
+    const m = part.match(/^\{(\w+)\}$/);
+    return m && m[1] in nodes ? <Fragment key={i}>{nodes[m[1]]}</Fragment> : part;
+  });
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { t } from "@/core/i18n.ts";
 import { cx, useMoney } from "./ui.tsx";
 
 /** Labelled horizontal bars. Values are printed as text, so nothing depends on colour alone. */
@@ -44,13 +45,13 @@ export function DailyColumns({ days }: { days: { date: string; value: number }[]
   if (days.length === 0) return null;
   return (
     <div>
-      <div className="flex h-28 items-end gap-[3px]" role="img" aria-label="Daily revenue">
+      <div className="flex h-28 items-end gap-[3px]" role="img" aria-label={t("Daily revenue")}>
         {days.map((d) => (
           <div key={d.date} className="group relative flex h-full flex-1 items-end">
             <div
               className="w-full rounded-t bg-accent/80 transition-colors group-hover:bg-accent"
               style={{ height: `${Math.max((d.value / max) * 100, d.value > 0 ? 3 : 0)}%` }}
-              title={`${d.date}: ${fmt(d.value)}`}
+              title={`${d.date} · ${fmt(d.value)}`}
             />
           </div>
         ))}

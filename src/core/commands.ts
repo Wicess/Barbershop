@@ -111,6 +111,10 @@ export function normalizePhone(v: unknown): string | null {
   const t = v.trim();
   const digits = t.replace(/\D/g, "");
   if (digits.length < 6) return null;
+  // Cameroon (+237): "+237 6 77 12 34 56", "00237677123456" and "677 12 34 56"
+  // are the same person, so they're all kept as the 9-digit local number.
+  const cm = digits.match(/^(?:00)?237([26]\d{8})$/);
+  if (cm) return cm[1];
   return (t.startsWith("+") ? "+" : "") + digits;
 }
 

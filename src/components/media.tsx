@@ -11,39 +11,43 @@ import { cx } from "./ui.tsx";
  * Services are named by each shop, so they're matched by keywords in the name,
  * then by section, then by a generic shop photo.
  */
+// English and French (the app is used in Cameroon). Order matters: specific
+// before general, e.g. "Massage crânien" before the "crâne" (head shave) rule.
 const KEYWORDS: [RegExp, string][] = [
-  [/kid|child|boy|junior/i, "kids-cut"],
-  [/beard\s*shave|shave.*beard/i, "beard-shave"],
-  [/beard|moustache|mustache|goatee/i, "beard-trim"],
-  [/head\s*shave|clean\s*shave|bald|shave/i, "head-shave"],
-  [/line.?up|shape.?up|edge.?up|razor|hair\s*design/i, "lineup"],
-  [/wash|shampoo|rinse/i, "hair-wash"],
-  [/dye|colou?r|tint|bleach|relax|treatment|scalp|style/i, "salon"],
-  [/haircut|hair\s*cut|cut|fade|trim|taper/i, "haircut"],
-  // Pedicure before nails, so "Gel pedicure" and "Callus removal" land here.
-  [/callus|spa\s*pedi|foot\s*spa/i, "pedicure"],
-  [/pedi|toe|foot|feet/i, "pedicure-polish"],
-  [/remov|soak.?off/i, "nail-tools"],
-  [/art|design|gel|acrylic|polish/i, "nail-art"],
-  [/repair|file|buff|men'?s\s*mani/i, "nails-natural"],
-  [/mani|nail/i, "manicure"],
   [/massage/i, "massage"],
-  [/steam|sauna/i, "steam"],
+  [/steam|sauna|vapeur/i, "steam"],
+  [/kid|child|boy|junior|enfant|gar[cç]on|b[ée]b[ée]/i, "kids-cut"],
+  [/beard\s*shave|shave.*beard|rasage.*barbe|barbe.*rasage/i, "beard-shave"],
+  [/beard|moustache|mustache|goatee|barbe|bouc/i, "beard-trim"],
+  [/head\s*shave|clean\s*shave|bald|shave|rasage|ras[ée]|cr[aâ]ne|chauve/i, "head-shave"],
+  [/line.?up|shape.?up|edge.?up|razor|hair\s*design|contour|tra[cç]age/i, "lineup"],
+  [/wash|shampoo|rinse|lavage|shampo|rin[cç]age/i, "hair-wash"],
+  [/visage|masque|sourcil|[ée]pilation|gommage|\bpeau\b/i, "facial"],
+  [/dye|colou?r|tint|bleach|relax|treatment|scalp|style|teinture|coloration|d[ée]frisage|tresse|natte|tissage|perruque|m[eè]che|brushing|cuir chevelu|soin/i, "salon"],
+  [/haircut|hair\s*cut|cut|fade|trim|taper|coupe|d[ée]grad[ée]|taille/i, "haircut"],
+  // Pedicure before nails, so "Gel pedicure" and "Callus removal" land here.
+  [/callus|spa\s*pedi|foot\s*spa|p[ée]dicure\s*spa|callosit|bain de pieds/i, "pedicure"],
+  [/pedi|toe|foot|feet|p[ée]di|orteil|pied/i, "pedicure-polish"],
+  [/remov|soak.?off|d[ée]pose|retrait/i, "nail-tools"],
+  [/art|design|gel|acrylic|polish|vernis|capsule|faux ongles|acrylique/i, "nail-art"],
+  [/repair|file|buff|men'?s\s*mani|r[ée]paration|manucure\s*homme/i, "nails-natural"],
+  [/mani|nail|manucure|ongle/i, "manicure"],
   [/facial|face|mask|brow|wax|eyebrow|skin/i, "facial"],
-  [/coffee|latte|espresso|cappuccino|americano/i, "coffee"],
-  [/tea|chai/i, "tea"],
-  [/juice|smoothie|lemonade/i, "juice"],
-  [/energy|red\s*bull|monster|power/i, "energy"],
-  [/water|h2o/i, "water"],
-  [/soda|coke|cola|fanta|sprite|pepsi|soft|drink|beer|malt|can|bottle/i, "soda"],
+  [/coffee|latte|espresso|cappuccino|americano|caf[ée]/i, "coffee"],
+  // Unicode-aware edges: plain \\b treats "é" as a non-letter, so "Thé" would slip past.
+  [/\btea\b|chai|(?<!\p{L})th[ée](?!\p{L})|infusion/iu, "tea"],
+  [/juice|smoothie|lemonade|\bjus\b|cocktail de fruits/i, "juice"],
+  [/energy|red\s*bull|monster|power|[ée]nerg/i, "energy"],
+  [/water|h2o|\beau\b|tangui|supermont/i, "water"],
+  [/soda|coke|cola|fanta|sprite|pepsi|soft|drink|beer|malt|can|bottle|boisson|bi[eè]re|guinness|top|djino/i, "soda"],
 ];
 
 const SECTIONS: [RegExp, string][] = [
-  [/barb|hair|cut/i, "haircut"],
-  [/mani|nail/i, "manicure"],
-  [/pedi|foot/i, "pedicure"],
-  [/drink|bever|bar|cafe|café|refresh/i, "soda"],
-  [/spa|facial|massage|beauty|other/i, "facial"],
+  [/barb|hair|cut|coiff/i, "haircut"],
+  [/mani|nail|manucure|ongle/i, "manicure"],
+  [/pedi|foot|p[ée]di|pied/i, "pedicure"],
+  [/drink|bever|bar|cafe|café|refresh|boisson/i, "soda"],
+  [/spa|facial|massage|beauty|other|autre|soin|beaut/i, "facial"],
 ];
 
 const src = (key: string) => `/img/${key}.webp`;

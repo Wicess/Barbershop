@@ -15,6 +15,7 @@ import { SplitCard } from "@/components/SplitCard.tsx";
 import { loadReceipt, ReceiptDoc } from "@/components/Receipt.tsx";
 import { printContent } from "@/components/print.tsx";
 import { haptic, useMediaQuery } from "@/components/native.tsx";
+import { plural, t } from "@/core/i18n.ts";
 import { itemImage, Photo, sectionImage } from "@/components/media.tsx";
 import { Avatar } from "./Boot.tsx";
 import {
@@ -32,6 +33,9 @@ interface Catalog {
 }
 
 const CART_KEY = "bms_cart";
+
+/** Section and service names are shop data; default English names show in French. */
+const shown = (name: string) => t(name);
 
 function loadCart(): CartLine[] {
   try {
@@ -198,7 +202,7 @@ export function SellView() {
     }
     return {
       ready,
-      rows: [...by.entries()].map(([id, amount]) => ({ id, amount, name: data.staff.find((s) => s.id === id)?.name ?? "Staff" })),
+      rows: [...by.entries()].map(([id, amount]) => ({ id, amount, name: data.staff.find((s) => s.id === id)?.name ?? t("Staff") })),
       shop: totals.total - staffTotal,
     };
   })();
@@ -209,7 +213,7 @@ export function SellView() {
 
   const ticketBody =
     cart.length === 0 ? (
-      <p className="py-6 text-center text-sm text-ink-3">No items yet. Tap a service or drink.</p>
+      <p className="py-6 text-center text-sm text-ink-3">{t("No items yet. Tap a service or drink.")}</p>
     ) : (
       <>
         <ul className="-mx-1 divide-y divide-line">
@@ -219,11 +223,13 @@ export function SellView() {
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold">
                     {l.qty > 1 && <span className="num text-ink-3">{l.qty} × </span>}
-                    {l.name}
+                    {shown(l.name)}
                   </div>
                   <div className="text-xs text-ink-3">
-                    {l.staff_id ? `by ${data.staff.find((s) => s.id === l.staff_id)?.name ?? "?"}` : depts.find((d) => d.id === l.department_id)?.name}
-                    {l.unit_price !== l.list_price && " · price changed"}
+                    {l.staff_id
+                      ? t("by {name}", { name: data.staff.find((s) => s.id === l.staff_id)?.name ?? "?" })
+                      : shown(depts.find((d) => d.id === l.department_id)?.name ?? "")}
+                    {l.unit_price !== l.list_price && ` · ${t("price changed")}`}
                     {l.discount > 0 && ` · −${fmt(l.discount)}`}
                   </div>
                 </div>
@@ -234,7 +240,7 @@ export function SellView() {
         </ul>
         {split.ready && split.rows.length > 0 && (
           <div className="mt-2 rounded-2xl bg-surface-2 p-3.5">
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">Who gets what</p>
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">{t("Who gets what")}</p>
             {split.rows.map((r) => (
               <div key={r.id} className="flex items-baseline justify-between gap-3 py-0.5 text-sm">
                 <span className="truncate">{r.name}</span>
@@ -242,29 +248,29 @@ export function SellView() {
               </div>
             ))}
             <div className="mt-1.5 flex items-baseline justify-between gap-3 border-t border-line pt-1.5 text-sm">
-              <span className="text-ink-2">Shop keeps</span>
+              <span className="text-ink-2">{t("Shop keeps")}</span>
               <Money value={split.shop} className="shrink-0 font-semibold" />
             </div>
           </div>
         )}
         <div className="mt-2 space-y-3 border-t border-line pt-3">
           <div className="grid grid-cols-2 gap-2">
-            <Field label="Customer phone" htmlFor="cphone">
-              <Input id="cphone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" autoComplete="off" />
+            <Field label={t("Customer phone")} htmlFor="cphone">
+              <Input id="cphone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t("Optional")} autoComplete="off" />
             </Field>
-            <Field label="Name" htmlFor="cust">
-              <Input id="cust" value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Walk-in" autoComplete="off" />
+            <Field label={t("Name")} htmlFor="cust">
+              <Input id="cust" value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder={t("Walk-in")} autoComplete="off" />
             </Field>
           </div>
           <ReturningClient phone={phone} onName={(n) => setCustomer((c) => c || n)} />
           {totals.discount > 0 && (
             <div className="flex justify-between text-sm text-ink-3">
-              <span>Discounts</span>
+              <span>{t("Discounts")}</span>
               <Money value={-totals.discount} />
             </div>
           )}
           <div className="flex items-baseline justify-between pt-1">
-            <span className="font-semibold">Total</span>
+            <span className="font-semibold">{t("Total")}</span>
             <Money value={totals.total} className="text-xl font-extrabold" />
           </div>
         </div>
@@ -274,28 +280,28 @@ export function SellView() {
   return (
     <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6">
       <div className="min-w-0">
-        <PageHeader title="New sale" subtitle="Tap what the customer had. Services ask who did them." />
+        <PageHeader title={t("New sale")} subtitle={t("Tap what the customer had. Services ask who did them.")} />
         {noCatalog ? (
           <Empty
             icon={<Scissors className="size-8" />}
-            title="Your price list is empty"
-            action={can("catalog.manage") ? <Button onClick={() => go("/catalog")}>Add services and drinks</Button> : undefined}
+            title={t("Your price list is empty")}
+            action={can("catalog.manage") ? <Button onClick={() => go("/catalog")}>{t("Add services and drinks")}</Button> : undefined}
           >
-            {can("catalog.manage") ? "Add your services (haircut, shave, pedicure…) and drinks first." : "Ask the manager or owner to add the price list."}
+            {can("catalog.manage") ? t("Add your services (haircut, shave, pedicure…) and drinks first.") : t("Ask the manager or owner to add the price list.")}
           </Empty>
         ) : data.staff.length === 0 ? (
           <Empty
             icon={<UserRound className="size-8" />}
-            title="No staff added yet"
-            action={can("staff.manage") ? <Button onClick={() => go("/staff")}>Add staff</Button> : undefined}
+            title={t("No staff added yet")}
+            action={can("staff.manage") ? <Button onClick={() => go("/staff")}>{t("Add staff")}</Button> : undefined}
           >
-            Each service is credited to the barber or technician who did it, so add your staff first.
+            {t("Each service is credited to the barber or technician who did it, so add your staff first.")}
           </Empty>
         ) : (
           <>
             {/* Section switcher stays pinned under the top bar while scrolling the items. */}
             <div className="sticky top-[calc(env(safe-area-inset-top)+3.5rem)] z-20 -mx-4 mb-3 bg-bg/85 py-2 backdrop-blur-xl lg:static lg:mx-0 lg:bg-transparent lg:py-0 lg:backdrop-blur-none">
-              <div role="tablist" aria-label="Sections" className="chip-scroll flex scroll-px-4 gap-2 overflow-x-auto px-4 py-1 lg:scroll-px-0 lg:px-0">
+              <div role="tablist" aria-label={t("Sections")} className="chip-scroll flex scroll-px-4 gap-2 overflow-x-auto px-4 py-1 lg:scroll-px-0 lg:px-0">
                 {depts.map((d) => {
                   const count = cart.filter((l) => l.department_id === d.id).reduce((n, l) => n + l.qty, 0);
                   return (
@@ -315,7 +321,7 @@ export function SellView() {
                       )}
                     >
                       <Photo src={sectionImage(d.name, d.kind)} alt="" className={cx("size-9 rounded-full ring-2", d.id === activeDept?.id ? "ring-white/40" : "ring-transparent")} />
-                      {d.name}
+                      {shown(d.name)}
                       {count > 0 && (
                         <span className={cx("num rounded-full px-1.5 text-[11px] leading-5", d.id === activeDept?.id ? "bg-on-primary/20" : "bg-accent-soft text-accent")}>
                           {count}
@@ -327,7 +333,7 @@ export function SellView() {
               </div>
             </div>
             {items.length === 0 ? (
-              <p className="py-8 text-center text-sm text-ink-3">Nothing in {activeDept?.name} yet.</p>
+              <p className="py-8 text-center text-sm text-ink-3">{t("Nothing in {section} yet.", { section: shown(activeDept?.name ?? "") })}</p>
             ) : (
               <div key={activeDept?.id} className="stagger grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {items.map((item) => {
@@ -361,17 +367,17 @@ export function SellView() {
                               out ? "bg-negative text-white" : "bg-black/45 text-white",
                             )}
                           >
-                            {out ? "Out of stock" : `${product.on_hand} left`}
+                            {out ? t("Out of stock") : t("{n} left", { n: product.on_hand })}
                           </span>
                         ) : null}
                         {qty > 0 && (
-                          <span key={qty} className="num animate-pop absolute right-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-primary px-2 text-xs font-bold text-on-primary shadow-cta ring-2 ring-white/70" aria-label={`${qty} on ticket`}>
+                          <span key={qty} className="num animate-pop absolute right-2 top-2 flex h-7 min-w-7 items-center justify-center rounded-full bg-primary px-2 text-xs font-bold text-on-primary shadow-cta ring-2 ring-white/70" aria-label={t("{n} on ticket", { n: qty })}>
                             {qty}
                           </span>
                         )}
                       </span>
                       <span className="flex flex-1 flex-col px-2 pb-1.5 pt-2.5">
-                        <span className="line-clamp-2 text-[15px] font-semibold leading-snug tracking-[-0.01em]">{item.name}</span>
+                        <span className="line-clamp-2 text-[15px] font-semibold leading-snug tracking-[-0.01em]">{shown(item.name)}</span>
                         <span className="mt-auto flex items-center justify-between gap-1 pt-2">
                           <Money value={item.price} className="text-[15px] font-extrabold text-accent" />
                           <span
@@ -399,17 +405,17 @@ export function SellView() {
         <div className="sticky top-6">
           <Card className="p-4">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="font-bold">Ticket</h2>
+              <h2 className="font-bold">{t("Ticket")}</h2>
               {cart.length > 0 && (
                 <button className="min-h-11 cursor-pointer px-2 text-sm font-semibold text-negative" onClick={() => setCart([])}>
-                  Clear
+                  {t("Clear")}
                 </button>
               )}
             </div>
             {wide && ticketBody}
           </Card>
           <Button size="lg" block className="mt-3" disabled={cart.length === 0} onClick={charge}>
-            {cart.length === 0 ? "Charge" : `Charge ${fmt(totals.total)}`}
+            {cart.length === 0 ? t("Charge") : t("Charge {amount}", { amount: fmt(totals.total) })}
           </Button>
         </div>
       </div>
@@ -429,7 +435,7 @@ export function SellView() {
                   {itemCount}
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold leading-tight">View ticket</span>
+                  <span className="block text-sm font-semibold leading-tight">{t("View ticket")}</span>
                   <Money value={totals.total} className="block text-xs text-ink-3" />
                 </span>
               </button>
@@ -437,7 +443,7 @@ export function SellView() {
                 onClick={charge}
                 className="press flex min-h-12 shrink-0 cursor-pointer items-center justify-center rounded-[20px] bg-primary px-5 text-[15px] font-bold text-on-primary shadow-[inset_0_1px_0_rgb(255_255_255/0.25),0_8px_20px_-8px_rgb(239_116_64/0.8)]"
               >
-                Charge {fmt(totals.total)}
+                {t("Charge {amount}", { amount: fmt(totals.total) })}
               </button>
             </div>
           </div>
@@ -447,7 +453,7 @@ export function SellView() {
       <Sheet
         open={ticketOpen}
         onClose={() => setTicketOpen(false)}
-        title={`Ticket · ${itemCount} item${itemCount === 1 ? "" : "s"}`}
+        title={plural(itemCount, "Ticket · {n} item", "Ticket · {n} items")}
         footer={
           <div className="flex gap-2">
             <Button
@@ -458,10 +464,10 @@ export function SellView() {
                 setTicketOpen(false);
               }}
             >
-              Clear
+              {t("Clear")}
             </Button>
             <Button size="lg" block disabled={cart.length === 0} onClick={charge}>
-              Charge {fmt(totals.total)}
+              {t("Charge {amount}", { amount: fmt(totals.total) })}
             </Button>
           </div>
         }
@@ -523,7 +529,7 @@ function StaffPicker({
     })();
   }, [service, staff, store]);
   return (
-    <Sheet open={!!service} onClose={onClose} title={service ? `Who did the ${service.name.toLowerCase()}?` : ""}>
+    <Sheet open={!!service} onClose={onClose} title={service ? t("Who did the {service}?", { service: shown(service.name).toLowerCase() }) : ""}>
       {service && (
         <>
           {/* Product-page header: the service's photo, its section and price. */}
@@ -531,14 +537,14 @@ function StaffPicker({
             <Photo src={itemImage(service.name, sectionName)} alt="" priority className="aspect-[16/8] w-full" />
             <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,transparent_40%,rgb(14_10_8/0.85))]" />
             <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[#1c1612] backdrop-blur">
-              {sectionName}
+              {shown(sectionName)}
             </span>
             <span className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4 text-white">
-              <span className="text-lg font-bold uppercase leading-tight tracking-[0.02em]">{service.name}</span>
+              <span className="text-lg font-bold uppercase leading-tight tracking-[0.02em]">{shown(service.name)}</span>
               <Money value={service.price} className="shrink-0 rounded-full bg-primary px-3 py-1 text-sm font-extrabold text-white shadow-cta" />
             </span>
           </div>
-          <p className="mb-3 text-[13px] font-semibold uppercase tracking-[0.12em] text-ink-3">Done by</p>
+          <p className="mb-3 text-[13px] font-semibold uppercase tracking-[0.12em] text-ink-3">{t("Done by")}</p>
           {/* Tap a person to add it: one tap, like picking a size. */}
           <div className="stagger grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             {staff.map((s) => (
@@ -550,7 +556,7 @@ function StaffPicker({
                 <Avatar name={s.name} />
                 <span className="w-full truncate text-sm font-semibold">{s.name}</span>
                 {rates[s.id] != null ? (
-                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent">{bpToPercent(rates[s.id])} share</span>
+                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent">{t("{rate} share", { rate: bpToPercent(rates[s.id]) })}</span>
                 ) : (
                   <span className="h-[22px]" />
                 )}
@@ -578,21 +584,21 @@ function LineEditor({
     <Sheet
       open
       onClose={onClose}
-      title={line.name}
+      title={shown(line.name)}
       footer={
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => onRemove(line.key)} className="text-negative">
-            <Trash2 className="size-4" /> Remove
+            <Trash2 className="size-4" /> {t("Remove")}
           </Button>
           <Button block onClick={onClose}>
-            Done
+            {t("Done")}
           </Button>
         </div>
       }
     >
       <div className="space-y-4">
         {line.kind === "service" ? (
-          <Field label="Done by" htmlFor="by">
+          <Field label={t("Done by")} htmlFor="by">
             <div className="grid grid-cols-2 gap-2">
               {staff.map((s) => (
                 <Chip key={s.id} active={line.staff_id === s.id} onClick={() => onChange({ ...line, staff_id: s.id })}>
@@ -602,24 +608,24 @@ function LineEditor({
             </div>
           </Field>
         ) : null}
-        <Field label="Quantity">
+        <Field label={t("Quantity")}>
           <div className="flex items-center gap-3">
-            <IconButton label="One less" className="border border-line-strong" disabled={line.qty <= 1} onClick={() => onChange({ ...line, qty: line.qty - 1, discount: Math.min(line.discount, (line.qty - 1) * line.unit_price) })}>
+            <IconButton label={t("One less")} className="border border-line-strong" disabled={line.qty <= 1} onClick={() => onChange({ ...line, qty: line.qty - 1, discount: Math.min(line.discount, (line.qty - 1) * line.unit_price) })}>
               <Minus className="size-5" />
             </IconButton>
             <span className="num w-10 text-center text-xl font-bold">{line.qty}</span>
-            <IconButton label="One more" className="border border-line-strong" onClick={() => onChange({ ...line, qty: line.qty + 1 })}>
+            <IconButton label={t("One more")} className="border border-line-strong" onClick={() => onChange({ ...line, qty: line.qty + 1 })}>
               <Plus className="size-5" />
             </IconButton>
           </div>
         </Field>
         {can("sale.editPrice") && (
-          <Field label="Price (each)" htmlFor="price" hint={line.unit_price !== line.list_price ? "Changed from the price list. This is recorded." : undefined}>
+          <Field label={t("Price (each)")} htmlFor="price" hint={line.unit_price !== line.list_price ? t("Changed from the price list. This is recorded.") : undefined}>
             <MoneyInput id="price" value={line.unit_price} onChange={(v) => onChange({ ...line, unit_price: v ?? 0, discount: Math.min(line.discount, line.qty * (v ?? 0)) })} />
           </Field>
         )}
         {can("sale.discount") && (
-          <Field label="Discount" htmlFor="disc" hint="Taken off this item. Staff share is calculated after the discount.">
+          <Field label={t("Discount")} htmlFor="disc" hint={t("Taken off this item. Staff share is calculated after the discount.")}>
             <MoneyInput id="disc" value={line.discount || null} onChange={(v) => onChange({ ...line, discount: Math.min(v ?? 0, line.qty * line.unit_price) })} />
           </Field>
         )}
@@ -702,7 +708,7 @@ function PaySheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title={`Charge ${fmt(total)}`}
+      title={t("Charge {amount}", { amount: fmt(total) })}
       footer={
         <Button
           size="lg"
@@ -720,7 +726,7 @@ function PaySheet({
             setBusy(false);
           }}
         >
-          <Check className="size-5" /> Complete sale
+          <Check className="size-5" /> {t("Complete sale")}
         </Button>
       }
     >
@@ -729,33 +735,33 @@ function PaySheet({
           tipOpen ? (
             <div className="rounded-2xl border border-line p-3">
               <div className="mb-2 flex items-center justify-between">
-                <span className="flex items-center gap-2 text-sm font-semibold"><HandHeart className="size-4 text-accent" /> Tip</span>
+                <span className="flex items-center gap-2 text-sm font-semibold"><HandHeart className="size-4 text-accent" /> {t("Tip")}</span>
                 <button className="flex min-h-11 cursor-pointer items-center gap-1 px-2 text-sm font-semibold text-ink-3" onClick={() => { setTipOpen(false); setTip(null); }}>
-                  <X className="size-4" /> No tip
+                  <X className="size-4" /> {t("No tip")}
                 </button>
               </div>
-              <Field label="Tip amount" htmlFor="tip" hint="Goes 100% to the person you pick, on top of the bill. It is added to their pay, not to the shop's sales.">
+              <Field label={t("Tip amount")} htmlFor="tip" hint={t("Goes 100% to the person you pick, on top of the bill. It is added to their pay, not to the shop's sales.")}>
                 <MoneyInput id="tip" value={tip} onChange={setTip} />
               </Field>
               <div className="mt-3">
-                <div className="mb-1.5 text-sm font-medium text-ink-2">Who gets it</div>
+                <div className="mb-1.5 text-sm font-medium text-ink-2">{t("Who gets it")}</div>
                 <div className="flex flex-wrap gap-2">
                   {(onTicket.length ? onTicket : staff).map((s) => (
                     <Chip key={s.id} active={tipTarget === s.id} onClick={() => setTipTo(s.id)}>{s.name}</Chip>
                   ))}
                 </div>
-                {tipInvalid && <p className="mt-1.5 text-xs text-negative">Pick who gets the tip.</p>}
+                {tipInvalid && <p className="mt-1.5 text-xs text-negative">{t("Pick who gets the tip.")}</p>}
               </div>
             </div>
           ) : (
             <Button variant="secondary" block onClick={() => setTipOpen(true)}>
-              <HandHeart className="size-4" /> Add a tip
+              <HandHeart className="size-4" /> {t("Add a tip")}
             </Button>
           )
         )}
         {tipAmount > 0 && (
           <div className="flex justify-between rounded-xl bg-surface-2 px-4 py-2.5 text-sm">
-            <span className="text-ink-2">Bill <Money value={itemsTotal} /> + tip <Money value={tipAmount} /></span>
+            <span className="text-ink-2">{t("Bill {bill} + tip {tip}", { bill: fmt(itemsTotal), tip: fmt(tipAmount) })}</span>
             <Money value={total} className="font-bold" />
           </div>
         )}
@@ -763,29 +769,29 @@ function PaySheet({
           <div key={r.id} className={cx(split && "rounded-2xl border border-line p-3")}>
             {split && (
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-semibold text-ink-3">Payment {i + 1}</span>
+                <span className="text-sm font-semibold text-ink-3">{t("Payment {n}", { n: i + 1 })}</span>
                 <button className="min-h-11 cursor-pointer px-2 text-sm font-semibold text-negative" onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))}>
-                  Remove
+                  {t("Remove")}
                 </button>
               </div>
             )}
-            <div role="radiogroup" aria-label="Payment method" className="grid grid-cols-2 gap-2">
+            <div role="radiogroup" aria-label={t("Payment method")} className="grid grid-cols-2 gap-2">
               {PAYMENT_METHODS.map((m) => (
                 <Chip key={m} active={r.method === m} onClick={() => setRow(r.id, { method: m })}>
-                  {PAYMENT_LABEL[m]}
+                  {t(PAYMENT_LABEL[m])}
                 </Chip>
               ))}
             </div>
             {split && (
               <div className="mt-3">
-                <Field label="Amount" htmlFor={`amt-${r.id}`}>
+                <Field label={t("Amount")} htmlFor={`amt-${r.id}`}>
                   <MoneyInput id={`amt-${r.id}`} value={r.amount} onChange={(v) => setRow(r.id, { amount: v })} />
                 </Field>
               </div>
             )}
             {r.method !== "cash" && (
               <div className="mt-3">
-                <Field label={r.method === "mobile" ? "Transaction code" : "Reference (optional)"} htmlFor={`ref-${r.id}`} hint={r.method === "mobile" ? "Check it on the shop's till statement, not the customer's SMS." : undefined}>
+                <Field label={r.method === "mobile" ? t("Transaction code") : t("Reference (optional)")} htmlFor={`ref-${r.id}`} hint={r.method === "mobile" ? t("Check it on the shop's till statement, not the customer's SMS.") : undefined}>
                   <Input id={`ref-${r.id}`} value={r.reference} onChange={(e) => setRow(r.id, { reference: e.target.value.toUpperCase() })} autoCapitalize="characters" />
                 </Field>
               </div>
@@ -795,7 +801,7 @@ function PaySheet({
 
         {split ? (
           <div className="flex items-center justify-between rounded-xl bg-surface-2 px-4 py-3 text-sm font-semibold">
-            <span>{remaining === 0 ? "Fully covered" : remaining > 0 ? "Still to pay" : "Too much"}</span>
+            <span>{remaining === 0 ? t("Fully covered") : remaining > 0 ? t("Still to pay") : t("Too much")}</span>
             <Money value={remaining} className={cx(remaining !== 0 && "text-negative")} />
           </div>
         ) : null}
@@ -810,24 +816,24 @@ function PaySheet({
             })
           }
         >
-          <Plus className="size-4" /> Split payment
+          <Plus className="size-4" /> {t("Split payment")}
         </Button>
 
         {cash > 0 && (
           <div className="space-y-2 border-t border-line pt-4">
-            <Field label="Cash received" htmlFor="tendered" error={shortCash ? "Less than the cash due." : null}>
+            <Field label={t("Cash received")} htmlFor="tendered" error={shortCash ? t("Less than the cash due.") : null}>
               <MoneyInput id="tendered" value={tendered} onChange={setTendered} placeholder={toInputValue(cash, currency)} />
             </Field>
             <div className="flex flex-wrap gap-2">
               {quick.map((q) => (
                 <Chip key={q} active={tendered === q} onClick={() => setTendered(q)}>
-                  {q === cash ? "Exact" : fmt(q)}
+                  {q === cash ? t("Exact") : fmt(q)}
                 </Chip>
               ))}
             </div>
             {change > 0 && (
               <div className="flex items-center justify-between rounded-xl bg-accent-soft px-4 py-3 text-accent">
-                <span className="font-semibold">Give change</span>
+                <span className="font-semibold">{t("Give change")}</span>
                 <Money value={change} className="text-2xl font-bold" />
               </div>
             )}
@@ -852,14 +858,14 @@ function ReturningClient({ phone, onName }: { phone: string; onName: (name: stri
       <Repeat className="mt-0.5 size-4 shrink-0" />
       <div className="min-w-0">
         <div className="font-semibold">
-          {data.name ?? "Returning client"} · visit {data.visits + 1}
+          {t("{name} · visit {n}", { name: data.name ?? t("Returning client"), n: data.visits + 1 })}
         </div>
         <div className="text-xs opacity-90">
           {[
-            data.last_date && `Last came ${formatDate(data.last_date, { day: "numeric", month: "short" })}`,
+            data.last_date && t("Last came {date}", { date: formatDate(data.last_date, { day: "numeric", month: "short" }) }),
             // "Usually" only means something after a couple of visits; before that, say what happened last time.
-            data.usualStaff[0]?.n >= 2 ? `usually ${data.usualStaff[0].name}` : data.lastStaff && `last served by ${data.lastStaff.replace(/,/g, " & ")}`,
-            data.favourites[0]?.n >= 2 ? `likes ${data.favourites.filter((f) => f.n >= 2).map((f) => f.name).join(", ")}` : data.lastItems && `last had ${data.lastItems}`,
+            data.usualStaff[0]?.n >= 2 ? t("usually {name}", { name: data.usualStaff[0].name }) : data.lastStaff && t("last served by {names}", { names: data.lastStaff.replace(/,/g, " & ") }),
+            data.favourites[0]?.n >= 2 ? t("likes {items}", { items: data.favourites.filter((f) => f.n >= 2).map((f) => shown(f.name)).join(", ") }) : data.lastItems && t("last had {items}", { items: data.lastItems }),
           ].filter(Boolean).join(" · ")}
         </div>
       </div>
@@ -887,25 +893,25 @@ function SaleDone({ saleId, onNew }: { saleId: string; onNew: () => void }) {
             <Check className="size-9 stroke-[2.5]" />
           </span>
         </div>
-        <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-ink-3">Sale recorded · {data.sale.receipt_no}</p>
+        <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-ink-3">{t("Sale recorded · {receipt}", { receipt: data.sale.receipt_no })}</p>
         <Money value={data.sale.total} className="mt-2 block font-display text-[40px] font-bold leading-none tracking-[-0.04em]" />
         {data.sale.change_due > 0 && (
           <p className="mx-auto mt-5 flex w-fit items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 font-semibold text-on-primary shadow-cta">
-            Change to give <Money value={data.sale.change_due} className="font-extrabold" />
+            {t("Change to give")} <Money value={data.sale.change_due} className="font-extrabold" />
           </p>
         )}
       </section>
       <div className="mb-6 grid grid-cols-[auto_1fr] gap-2">
-        <Button variant="secondary" size="lg" onClick={() => printContent(<ReceiptDoc data={data} settings={settings} />)} aria-label="Print receipt">
+        <Button variant="secondary" size="lg" onClick={() => printContent(<ReceiptDoc data={data} settings={settings} />)} aria-label={t("Print receipt")}>
           <Printer className="size-5" />
         </Button>
         <Button size="lg" onClick={onNew}>
-          Next customer
+          {t("Next customer")}
         </Button>
       </div>
       {can("payroll.view") && (
         <div className="mb-5">
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">Who gets what</h2>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">{t("Who gets what")}</h2>
           <SplitCard split={data.split} />
         </div>
       )}

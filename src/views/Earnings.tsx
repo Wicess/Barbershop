@@ -1,17 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { ChevronRight, Store, Users } from "lucide-react";
 import { useQuery } from "@/client/app-context.tsx";
 import { go, setParams } from "@/client/router.ts";
 import { formatDate, formatTime, presetPeriod } from "@/core/dates.ts";
 import { bpToPercent } from "@/core/money.ts";
+import { plural, t, tk } from "@/core/i18n.ts";
 import { staffEarnings, staffLines, type EarningRow } from "@/core/reports.ts";
 import { Button, Card, Chip, Empty, Money, PageHeader, Sheet, Spinner, Stat, cx } from "@/components/ui.tsx";
 import { Avatar } from "./Boot.tsx";
 
 const PERIODS = [
-  ["today", "Today"], ["yesterday", "Yesterday"], ["week", "This week"], ["month", "This month"], ["lastMonth", "Last month"],
+  ["today", tk("Today")], ["yesterday", tk("Yesterday")], ["week", tk("This week")], ["month", tk("This month")], ["lastMonth", tk("Last month")],
 ] as const;
 type PeriodKey = (typeof PERIODS)[number][0];
 
@@ -27,41 +28,42 @@ export function EarningsView({ params }: { params: URLSearchParams }) {
   const { data } = useQuery((db) => staffEarnings(db, period.from, period.to), [period.from, period.to]);
 
   const totals = (data ?? []).reduce(
-    (t, r) => ({ revenue: t.revenue + r.revenue, staff: t.staff + r.staff_cut, shop: t.shop + r.shop_cut, services: t.services + r.services, tips: t.tips + r.tips }),
+    (acc, r) => ({ revenue: acc.revenue + r.revenue, staff: acc.staff + r.staff_cut, shop: acc.shop + r.shop_cut, services: acc.services + r.services, tips: acc.tips + r.tips }),
     { revenue: 0, staff: 0, shop: 0, services: 0, tips: 0 },
   );
 
   return (
     <div>
-      <PageHeader title="Earnings" subtitle="What each employee has made so far, updated with every sale" />
+      <PageHeader title={t("Earnings")} subtitle={t("What each employee has made so far, updated with every sale")} />
       <div className="chip-scroll -mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1">
         {PERIODS.map(([k, label]) => (
-          <Chip key={k} active={key === k} onClick={() => setParams({ p: k, staff: null })}>{label}</Chip>
+          <Chip key={k} active={key === k} onClick={() => setParams({ p: k, staff: null })}>{t(label)}</Chip>
         ))}
       </div>
 
       {!data ? (
         <Spinner />
       ) : data.length === 0 ? (
-        <Empty icon={<Users className="size-8" />} title="No staff yet" action={<Button onClick={() => go("/staff")}>Add staff</Button>}>
-          Add your barbers and nail technicians, and their earnings show here as sales are recorded.
+        <Empty icon={<Users className="size-8" />} title={t("No staff yet")} action={<Button onClick={() => go("/staff")}>{t("Add staff")}</Button>}>
+          {t("Add your barbers and nail technicians, and their earnings show here as sales are recorded.")}
         </Empty>
       ) : (
         <>
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <Stat label="Brought in" value={<Money value={totals.revenue} />} hint={`${totals.services} service${totals.services === 1 ? "" : "s"}`} />
-            <Stat label="Staff cuts" value={<Money value={totals.staff} />} tone="accent" hint={totals.tips > 0 ? <>+ <Money value={totals.tips} /> tips</> : undefined} />
-            <Stat label="Shop keeps" value={<Money value={totals.shop} />} />
+            <Stat label={t("Brought in")} value={<Money value={totals.revenue} />} hint={plural(totals.services, "{n} service", "{n} services")} />
+            <Stat label={t("Staff cuts")} value={<Money value={totals.staff} />} tone="accent" hint={totals.tips > 0 ? rich(t("+ {amount} tips"), { amount: <Money value={totals.tips} /> }) : undefined} />
+            <Stat label={t("Shop keeps")} value={<Money value={totals.shop} />} />
           </div>
 
-          <div className="mt-4 space-y-2.5">
+          <div className="mt-4 space-y-2.5 2xl:grid 2xl:grid-cols-2 2xl:gap-3 2xl:space-y-0">
             {data.map((r) => (
               <EmployeeCard key={r.staff_id} row={r} onOpen={() => setParams({ staff: r.staff_id })} />
             ))}
           </div>
           <p className="mt-3 text-xs text-ink-3">
-            Staff cuts here are earned from services. Advances, bonuses and payments for the month are under{" "}
-            <button className="cursor-pointer font-semibold text-accent underline-offset-2 hover:underline" onClick={() => go("/payroll")}>Staff pay</button>.
+            {rich(t("Staff cuts here are earned from services. Advances, bonuses and payments for the month are under {link}."), {
+              link: <button className="cursor-pointer font-semibold text-accent underline-offset-2 hover:underline" onClick={() => go("/payroll")}>{t("Staff pay")}</button>,
+            })}
           </p>
         </>
       )}
@@ -70,7 +72,7 @@ export function EarningsView({ params }: { params: URLSearchParams }) {
         row={data?.find((r) => r.staff_id === openId) ?? null}
         from={period.from}
         to={period.to}
-        label={period.label}
+        label={t(period.label)}
         onClose={() => setParams({ staff: null })}
       />
     </div>
@@ -92,10 +94,10 @@ function EmployeeCard({ row, onOpen }: { row: EarningRow; onOpen: () => void }) 
         </div>
         <div className="mt-0.5 flex items-baseline justify-between gap-3 text-xs text-ink-3">
           <span className="truncate">
-            {row.services} service{row.services === 1 ? "" : "s"} · brought in <Money value={row.revenue} />
-            {row.tips > 0 && <> · + <Money value={row.tips} /> tips</>}
+            {plural(row.services, "{n} service", "{n} services")} · {rich(t("brought in {amount}"), { amount: <Money value={row.revenue} /> })}
+            {row.tips > 0 && <> · {rich(t("+ {amount} tips"), { amount: <Money value={row.tips} /> })}</>}
           </span>
-          <span className="shrink-0">{row.last_at ? `last ${formatTime(row.last_at)}` : "no services yet"}</span>
+          <span className="shrink-0">{row.last_at ? t("last {time}", { time: formatTime(row.last_at) }) : t("no services yet")}</span>
         </div>
         {row.revenue > 0 && (
           <div className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden>
@@ -119,16 +121,16 @@ function EmployeeSheet({
   return (
     <Sheet open onClose={onClose} title={`${row.name} · ${label}`} wide>
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="Their money" value={<Money value={row.staff_cut + row.tips} />} tone="accent" hint={row.tips > 0 ? <>incl. <Money value={row.tips} /> tips</> : undefined} />
-        <Stat label="Shop keeps" value={<Money value={row.shop_cut} />} />
-        <Stat label="Clients" value={row.clients} hint={`${row.services} service${row.services === 1 ? "" : "s"}`} />
+        <Stat label={t("Their money")} value={<Money value={row.staff_cut + row.tips} />} tone="accent" hint={row.tips > 0 ? rich(t("incl. {amount} tips"), { amount: <Money value={row.tips} /> }) : undefined} />
+        <Stat label={t("Shop keeps")} value={<Money value={row.shop_cut} />} />
+        <Stat label={t("Clients")} value={row.clients} hint={plural(row.services, "{n} service", "{n} services")} />
       </div>
 
-      <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">Every service</h3>
+      <h3 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">{t("Every service")}</h3>
       {!lines ? (
         <Spinner />
       ) : lines.length === 0 ? (
-        <p className="py-6 text-center text-sm text-ink-3">No services in this period.</p>
+        <p className="py-6 text-center text-sm text-ink-3">{t("No services in this period.")}</p>
       ) : (
         <Card className="divide-y divide-line">
           {lines.slice(0, limit).map((l) => (
@@ -140,7 +142,7 @@ function EmployeeSheet({
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold">
                   {l.qty > 1 && <span className="num text-ink-3">{l.qty} × </span>}
-                  {l.name}
+                  {t(l.name)}
                 </div>
                 <div className="truncate text-xs text-ink-3">
                   {multiDay ? `${formatDate(l.business_date, { day: "numeric", month: "short" })}, ` : ""}
@@ -159,9 +161,17 @@ function EmployeeSheet({
       )}
       {lines && lines.length > limit && (
         <button className="mt-3 min-h-11 w-full cursor-pointer text-sm font-semibold text-accent" onClick={() => setLimit((n) => n + 60)}>
-          Show more ({lines.length - limit} left)
+          {t("Show more ({n} left)", { n: lines.length - limit })}
         </button>
       )}
     </Sheet>
   );
+}
+
+/** Put React nodes into a translated sentence at its {placeholders}. */
+function rich(text: string, nodes: Record<string, ReactNode>) {
+  return text.split(/(\{\w+\})/).map((part, i) => {
+    const m = part.match(/^\{(\w+)\}$/);
+    return m && m[1] in nodes ? <Fragment key={i}>{nodes[m[1]]}</Fragment> : part;
+  });
 }

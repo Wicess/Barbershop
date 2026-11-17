@@ -11,6 +11,16 @@
 import type { CommandType, Payloads, SaleLineInput } from "./commands.ts";
 import { addDays, addMonths, daysInMonth, monthOf } from "./dates.ts";
 import { share } from "./money.ts";
+import { FR } from "../i18n/fr/index.ts";
+
+/** Staff names for the Cameroon edition. */
+const CM_NAMES: Record<string, string> = {
+  "demo-st-kevin": "Junior Mbarga",
+  "demo-st-brian": "Arnaud Fotso",
+  "demo-st-aisha": "Brenda Ngono",
+  "demo-st-faith": "Sandrine Tchoua",
+  "demo-st-joy": "Mireille Abena",
+};
 
 export interface DemoCommand<K extends CommandType = CommandType> {
   type: K;
@@ -84,7 +94,18 @@ const lineAmount = (l: Pick<SaleLineInput, "qty" | "unit_price" | "discount">) =
  * Generate the demo shop from the first day of the month before `today`
  * up to `today` (which gets a few tickets and no cash count yet).
  */
-export function demoShop(today: string, seed = 2026): { commands: DemoCommand[]; ledger: DemoLedger } {
+export function demoShop(
+  today: string,
+  seed = 2026,
+  opts: { edition?: "default" | "cameroon" } = {},
+): { commands: DemoCommand[]; ledger: DemoLedger } {
+  // Cameroon edition: prices in FCFA (no decimals; base price × 3 ≈ local prices),
+  // French service names and Cameroonian staff and customer names.
+  const cm = opts.edition === "cameroon";
+  const conv = (minor: number) => (cm ? (minor / 100) * 3 : minor);
+  const M = (n: number) => conv(KES(n));
+  const label = (english: string) => (cm ? (FR[english] ?? english) : english);
+  const staffName = (id: string, name: string) => (cm ? (CM_NAMES[id] ?? name) : name);
   const r = rng(seed);
   const pick = <T,>(xs: readonly T[]) => xs[Math.floor(r() * xs.length)];
   const commands: DemoCommand[] = [];
@@ -104,16 +125,16 @@ export function demoShop(today: string, seed = 2026): { commands: DemoCommand[];
   const t0 = `${start}T05:00:00.000Z`;
   for (const s of DEMO_STAFF) {
     push("staff.upsert", {
-      staff: { id: s.id, name: s.name, specialty: s.specialty, commission_bp: s.bp, base_salary: s.salary, joined_on: start, active: 1 },
+      staff: { id: s.id, name: staffName(s.id, s.name), specialty: label(s.specialty), commission_bp: s.bp, base_salary: conv(s.salary), joined_on: start, active: 1 },
       rates: Object.entries(s.rates).map(([department_id, commission_bp]) => ({ department_id, commission_bp })),
     }, t0);
   }
-  DEMO_SERVICES.forEach((sv, i) => push("service.upsert", { id: sv.id, department_id: sv.dept, name: sv.name, price: sv.price, active: 1, sort: i }, t0));
+  DEMO_SERVICES.forEach((sv, i) => push("service.upsert", { id: sv.id, department_id: sv.dept, name: label(sv.name), price: conv(sv.price), active: 1, sort: i }, t0));
   DEMO_PRODUCTS.forEach((p, i) => {
-    push("product.upsert", { id: p.id, department_id: "dept-drinks", name: p.name, price: p.price, cost: p.cost, track_stock: 1, active: 1, sort: i }, t0);
-    push("stock.move", { id: `demo-mv-open-${p.id}`, product_id: p.id, qty: 400, reason: "purchase", unit_cost: p.cost, paid_from: "other", business_date: start }, t0);
+    push("product.upsert", { id: p.id, department_id: "dept-drinks", name: label(p.name), price: conv(p.price), cost: conv(p.cost), track_stock: 1, active: 1, sort: i }, t0);
+    push("stock.move", { id: `demo-mv-open-${p.id}`, product_id: p.id, qty: 400, reason: "purchase", unit_cost: conv(p.cost), paid_from: "other", business_date: start }, t0);
   });
-  push("recurring.upsert", { id: "demo-rec-rent", category: "Rent", amount: KES(25000), description: "Shop rent", active: 1 }, t0);
+  push("recurring.upsert", { id: "demo-rec-rent", category: "Rent", amount: M(25000), description: label("Shop rent"), active: 1 }, t0);
 
   let receipt = 0;
   for (let day = start; day <= today; day = addDays(day, 1)) {
@@ -130,39 +151,39 @@ export function demoShop(today: string, seed = 2026): { commands: DemoCommand[];
 
     // Salaried staff earn the full month (they joined on the 1st of the first month).
     if (dom === 1) {
-      for (const s of DEMO_STAFF) if (s.salary) payOf(month, s.id).salary = s.salary;
+      for (const s of DEMO_STAFF) if (conv(s.salary)) payOf(month, s.id).salary = conv(s.salary);
       push("recurring.post", { month }, `${day}T05:30:00.000Z`);
     }
 
     // ---- money out ----
-    if (dom === 5) push("expense.create", { id: `demo-ex-power-${month}`, category: "Electricity", amount: KES(4500), description: "Power bill", paid_from: "other", business_date: day }, at());
+    if (dom === 5) push("expense.create", { id: `demo-ex-power-${month}`, category: "Electricity", amount: M(4500), description: label("Power bill"), paid_from: "other", business_date: day }, at());
     if (new Date(`${day}T12:00:00Z`).getUTCDay() === 1) {
       const dept = pick(["dept-barbering", "dept-manicure", "dept-pedicure"]);
-      const amount = KES(300 + Math.floor(r() * 6) * 50);
-      push("expense.create", { id: `demo-ex-sup-${day}`, category: "Supplies & consumables", department_id: dept, amount, description: "Weekly supplies", paid_from: "till", business_date: day }, at());
+      const amount = M(300 + Math.floor(r() * 6) * 50);
+      push("expense.create", { id: `demo-ex-sup-${day}`, category: "Supplies & consumables", department_id: dept, amount, description: label("Weekly supplies"), paid_from: "till", business_date: day }, at());
       cash.cashOut += amount;
     }
     if (dom === 15) {
       for (const p of DEMO_PRODUCTS) {
-        push("stock.move", { id: `demo-mv-${p.id}-${day}`, product_id: p.id, qty: 48, reason: "purchase", unit_cost: p.cost, paid_from: "till", business_date: day }, at());
-        cash.cashOut += 48 * p.cost;
+        push("stock.move", { id: `demo-mv-${p.id}-${day}`, product_id: p.id, qty: 48, reason: "purchase", unit_cost: conv(p.cost), paid_from: "till", business_date: day }, at());
+        cash.cashOut += 48 * conv(p.cost);
       }
     }
     if (dom === 10) {
       for (const id of ["demo-st-kevin", "demo-st-brian"]) {
-        const amount = KES(2000);
-        push("adjustment.create", { id: `demo-adv-${id}-${month}`, staff_id: id, month, kind: "advance", amount, note: "Advance", paid_from: "till", business_date: day }, at());
+        const amount = M(2000);
+        push("adjustment.create", { id: `demo-adv-${id}-${month}`, staff_id: id, month, kind: "advance", amount, note: label("Advance"), paid_from: "till", business_date: day }, at());
         payOf(month, id).advances += amount;
         cash.cashOut += amount;
       }
     }
     if (dom === 20) {
-      push("adjustment.create", { id: `demo-ded-${month}`, staff_id: "demo-st-kevin", month, kind: "deduction", amount: KES(500), note: "Late twice", business_date: day }, at());
-      payOf(month, "demo-st-kevin").deductions += KES(500);
+      push("adjustment.create", { id: `demo-ded-${month}`, staff_id: "demo-st-kevin", month, kind: "deduction", amount: M(500), note: label("Late twice"), business_date: day }, at());
+      payOf(month, "demo-st-kevin").deductions += M(500);
     }
     if (dom === daysInMonth(month) && !isToday) {
-      push("adjustment.create", { id: `demo-bonus-${month}`, staff_id: "demo-st-aisha", month, kind: "bonus", amount: KES(1000), note: "Top rated", business_date: day }, at());
-      payOf(month, "demo-st-aisha").bonuses += KES(1000);
+      push("adjustment.create", { id: `demo-bonus-${month}`, staff_id: "demo-st-aisha", month, kind: "bonus", amount: M(1000), note: label("Top rated"), business_date: day }, at());
+      payOf(month, "demo-st-aisha").bonuses += M(1000);
     }
 
     // ---- tickets ----
@@ -175,8 +196,8 @@ export function demoShop(today: string, seed = 2026): { commands: DemoCommand[];
         const sv = pick(DEMO_SERVICES.filter((s) => s.dept === dept));
         const staff = pick(DEMO_STAFF.filter((s) => s.depts.includes(dept)));
         lines.push({
-          id: `${saleId}-l${lines.length}`, position: lines.length, kind: "service", item_id: sv.id, name: sv.name,
-          department_id: dept, staff_id: staff.id, qty: 1, list_price: sv.price, unit_price: sv.price, discount: 0,
+          id: `${saleId}-l${lines.length}`, position: lines.length, kind: "service", item_id: sv.id, name: label(sv.name),
+          department_id: dept, staff_id: staff.id, qty: 1, list_price: conv(sv.price), unit_price: conv(sv.price), discount: 0,
           commission_bp: rate(staff.id, dept), unit_cost: 0,
         });
       };
@@ -184,9 +205,9 @@ export function demoShop(today: string, seed = 2026): { commands: DemoCommand[];
         const p = pick(DEMO_PRODUCTS);
         const qty = 1 + Math.floor(r() * 2);
         lines.push({
-          id: `${saleId}-l${lines.length}`, position: lines.length, kind: "product", item_id: p.id, name: p.name,
-          department_id: "dept-drinks", staff_id: null, qty, list_price: p.price, unit_price: p.price, discount: 0,
-          commission_bp: 0, unit_cost: p.cost,
+          id: `${saleId}-l${lines.length}`, position: lines.length, kind: "product", item_id: p.id, name: label(p.name),
+          department_id: "dept-drinks", staff_id: null, qty, list_price: conv(p.price), unit_price: conv(p.price), discount: 0,
+          commission_bp: 0, unit_cost: conv(p.cost),
         });
       };
       const kind = r();
@@ -200,12 +221,12 @@ export function demoShop(today: string, seed = 2026): { commands: DemoCommand[];
       } else addDrink();
 
       // Occasional discount on the first line (owner can always discount).
-      if (r() < 0.07) lines[0].discount = Math.min(KES(50), lines[0].qty * lines[0].unit_price);
+      if (r() < 0.07) lines[0].discount = Math.min(M(50), lines[0].qty * lines[0].unit_price);
 
       const total = lines.reduce((n, l) => n + lineAmount(l), 0);
       const serviceStaff = lines.filter((l) => l.staff_id).map((l) => l.staff_id!);
       const tips: NonNullable<Payloads["sale.create"]["tips"]> = [];
-      if (serviceStaff.length && r() < 0.15) tips.push({ id: `${saleId}-tip`, staff_id: pick(serviceStaff), amount: KES(50 * (1 + Math.floor(r() * 4))) });
+      if (serviceStaff.length && r() < 0.15) tips.push({ id: `${saleId}-tip`, staff_id: pick(serviceStaff), amount: M(50 * (1 + Math.floor(r() * 4))) });
       const due = total + tips.reduce((n, x) => n + x.amount, 0);
 
       const payments: Payloads["sale.create"]["payments"] = [];
@@ -213,11 +234,11 @@ export function demoShop(today: string, seed = 2026): { commands: DemoCommand[];
       const m = r();
       if (m < 0.55) {
         payments.push({ id: `${saleId}-p0`, method: "cash", amount: due, reference: null });
-        tendered = Math.ceil(due / KES(100)) * KES(100);
-      } else if (m < 0.9 || due < KES(200)) {
+        tendered = Math.ceil(due / M(100)) * M(100);
+      } else if (m < 0.9 || due < M(200)) {
         payments.push({ id: `${saleId}-p0`, method: "mobile", amount: due, reference: `QX${day.replace(/-/g, "")}${t}` });
       } else {
-        const cashPart = Math.floor(due / 2 / KES(100)) * KES(100);
+        const cashPart = Math.floor(due / 2 / M(100)) * M(100);
         payments.push({ id: `${saleId}-p0`, method: "cash", amount: cashPart, reference: null });
         payments.push({ id: `${saleId}-p1`, method: "mobile", amount: due - cashPart, reference: `QS${day.replace(/-/g, "")}${t}` });
         tendered = cashPart;
@@ -226,13 +247,13 @@ export function demoShop(today: string, seed = 2026): { commands: DemoCommand[];
       receipt++;
       const created = at();
       push("sale.create", {
-        sale: { id: saleId, receipt_no: `D-${String(receipt).padStart(5, "0")}`, customer_name: r() < 0.3 ? pick(["Otieno", "Mary W.", "Peter K.", "Grace A.", "Sam"]) : null, customer_phone: null, note: null, business_date: day, created_at: created, tendered },
+        sale: { id: saleId, receipt_no: `D-${String(receipt).padStart(5, "0")}`, customer_name: r() < 0.3 ? pick(cm ? ["Ndongo", "Aïcha B.", "Paul Essomba", "Clarisse N.", "Samuel"] : ["Otieno", "Mary W.", "Peter K.", "Grace A.", "Sam"]) : null, customer_phone: null, note: null, business_date: day, created_at: created, tendered },
         lines, payments, tips,
       }, created);
 
       // About one ticket in 45 is voided the same day.
       if (r() < 0.022) {
-        push("sale.void", { id: saleId, reason: "Entered twice by mistake" }, at());
+        push("sale.void", { id: saleId, reason: label("Entered twice by mistake") }, at());
         ledger.voided.push(saleId);
         continue;
       }
@@ -263,7 +284,7 @@ export function demoShop(today: string, seed = 2026): { commands: DemoCommand[];
       for (const [staffId, p] of Object.entries(ledger.pay[prev] ?? {})) {
         const balance = p.earned + p.tips + p.salary + p.bonuses - p.deductions - p.advances - p.paid;
         if (balance <= 0) continue;
-        push("payout.create", { id: `demo-pay-${staffId}-${prev}`, staff_id: staffId, month: prev, amount: balance, method: "bank", paid_from: "other", note: "Monthly pay", business_date: day }, at());
+        push("payout.create", { id: `demo-pay-${staffId}-${prev}`, staff_id: staffId, month: prev, amount: balance, method: "bank", paid_from: "other", note: label("Monthly pay"), business_date: day }, at());
         p.paid += balance;
       }
     }
@@ -271,9 +292,9 @@ export function demoShop(today: string, seed = 2026): { commands: DemoCommand[];
     // ---- count the drawer (not today: the day isn't over) ----
     if (!isToday) {
       const expected = cash.cashSales - cash.cashOut; // opening float is 0 in a new shop
-      const variance = r() < 0.15 ? KES(pick([-100, -50, 50])) : 0;
+      const variance = r() < 0.15 ? M(pick([-100, -50, 50])) : 0;
       ledger.cash[day] = { ...cash, expected };
-      push("day.close", { business_date: day, opening_float: 0, cash_sales: cash.cashSales, cash_out: cash.cashOut, expected, counted: expected + variance, note: variance ? "Small difference" : null }, `${day}T18:30:00.000Z`);
+      push("day.close", { business_date: day, opening_float: 0, cash_sales: cash.cashSales, cash_out: cash.cashOut, expected, counted: expected + variance, note: variance ? label("Small difference") : null }, `${day}T18:30:00.000Z`);
     }
   }
 

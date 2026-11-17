@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { CommandError, type Actor, type CommandType, type Payloads } from "@/core/commands.ts";
+import { tMessage } from "@/core/i18n.ts";
 import type { Db } from "@/core/db.ts";
 import { can as canRole, type Permission } from "@/core/permissions.ts";
 import { DEFAULT_SETTINGS, loadSettings, type Settings } from "@/core/settings.ts";
@@ -94,7 +95,8 @@ export function AppProvider(props: {
         if (success) toast(success, "success");
         return true;
       } catch (e) {
-        toast(e instanceof CommandError ? e.message : "Something went wrong. Please try again.", "error");
+        // Errors arrive in English from the commands and the server; show them in the person's language.
+        toast(tMessage(e instanceof CommandError ? e.message : "Something went wrong. Please try again."), "error");
         if (!(e instanceof CommandError)) console.error(e);
         return false;
       }

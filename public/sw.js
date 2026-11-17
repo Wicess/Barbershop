@@ -2,7 +2,7 @@
 // engine) cached so the app opens with no internet. Data never goes through
 // this cache: it lives in the device's own database and syncs via /api/sync.
 
-const CACHE = "bms-shell-v3";
+const CACHE = "bms-shell-v5"; // v5: new Cameroon photos (v4: logo and app icons)
 // Service and section photos (~830 KB) — kept in step with ALL_PHOTOS in src/components/media.tsx.
 const PHOTOS = [
   "haircut", "lineup", "beard-trim", "beard-shave", "head-shave", "kids-cut", "barber-cut", "hair-wash", "salon",
@@ -15,6 +15,8 @@ const PRECACHE = [
   "/icons/icon.svg",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
+  "/brand/logo.png",
+  "/brand/logo-white.png",
   "/sqljs/sql-wasm.js",
   "/sqljs/sql-wasm.wasm",
 ];
@@ -68,7 +70,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Hashed build files and the database engine never change: cache first.
-  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/sqljs/") || url.pathname.startsWith("/icons/") || url.pathname.startsWith("/img/")) {
+  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/sqljs/") || url.pathname.startsWith("/icons/") || url.pathname.startsWith("/brand/") || url.pathname.startsWith("/img/")) {
     event.respondWith(
       (async () => {
         const cache = await caches.open(CACHE);

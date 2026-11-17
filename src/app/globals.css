@@ -13,11 +13,12 @@
   --line: #ece5dc;
   --line-strong: #d9cfc3;
   /* Burnt orange: white text on it passes WCAG AA (4.5:1). */
-  --primary: #cf4a1f;
-  --primary-2: #ef7440;
+  --primary: #8b4b2c; /* cognac: classic, quiet; white text on it is 7:1 */
+  --primary-2: #a8643f;
   --on-primary: #ffffff;
-  --accent: #c2461d;
-  --accent-soft: #fbe8de;
+  --accent: #8b4b2c;
+  --accent-soft: #f2e7dc;
+  --brass: #9c7a45;
   /* The espresso panel used for hero cards, the tab bar and the sign-in screen. */
   --panel: #1f1814;
   --panel-2: #2c231e;
@@ -28,12 +29,12 @@
   --negative-soft: #fbe9e6;
   --warning: #9a5b00;
   --warning-soft: #fdf0d8;
-  --focus: #cf4a1f;
+  --focus: #8b4b2c;
   --scrim: rgb(28 18 12 / 0.48);
   --shadow-sm: 0 1px 2px rgb(74 42 20 / 0.05), 0 2px 8px -2px rgb(74 42 20 / 0.06);
   --shadow-md: 0 1px 2px rgb(74 42 20 / 0.05), 0 12px 32px -14px rgb(74 42 20 / 0.18);
   --shadow-lg: 0 2px 6px rgb(74 42 20 / 0.06), 0 24px 56px -20px rgb(74 42 20 / 0.32);
-  --shadow-primary: 0 10px 24px -10px rgb(207 74 31 / 0.6);
+  --shadow-primary: 0 1px 2px rgb(60 32 16 / 0.18), 0 6px 14px -8px rgb(60 32 16 / 0.35);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   color-scheme: light;
@@ -53,11 +54,12 @@
     --ink-3: #958b83;
     --line: rgb(255 255 255 / 0.08);
     --line-strong: rgb(255 255 255 / 0.16);
-    --primary: #f0703f;
-    --primary-2: #ff8f5c;
-    --on-primary: #1c0d06;
-    --accent: #f58a5c;
-    --accent-soft: #3a2117;
+    --primary: #c18a5e; /* burnished copper */
+    --primary-2: #d4a27a;
+    --on-primary: #1a110b;
+    --accent: #d2a47c;
+    --accent-soft: #261c15;
+    --brass: #c8a46a;
     --panel: #1a1714;
     --panel-2: #26211c;
     --on-panel: #f7efe8;
@@ -67,12 +69,12 @@
     --negative-soft: #341714;
     --warning: #f5b544;
     --warning-soft: #2f2410;
-    --focus: #f0703f;
+    --focus: #c18a5e;
     --scrim: rgb(0 0 0 / 0.62);
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
     --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -14px rgb(0 0 0 / 0.6);
     --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.35), 0 24px 56px -20px rgb(0 0 0 / 0.75);
-    --shadow-primary: 0 10px 24px -10px rgb(240 112 63 / 0.5);
+    --shadow-primary: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 16px -10px rgb(0 0 0 / 0.7);
     color-scheme: dark;
   }
 }
@@ -85,11 +87,12 @@
     --ink-3: #958b83;
     --line: rgb(255 255 255 / 0.08);
     --line-strong: rgb(255 255 255 / 0.16);
-    --primary: #f0703f;
-    --primary-2: #ff8f5c;
-    --on-primary: #1c0d06;
-    --accent: #f58a5c;
-    --accent-soft: #3a2117;
+    --primary: #c18a5e; /* burnished copper */
+    --primary-2: #d4a27a;
+    --on-primary: #1a110b;
+    --accent: #d2a47c;
+    --accent-soft: #261c15;
+    --brass: #c8a46a;
     --panel: #1a1714;
     --panel-2: #26211c;
     --on-panel: #f7efe8;
@@ -99,12 +102,12 @@
     --negative-soft: #341714;
     --warning: #f5b544;
     --warning-soft: #2f2410;
-    --focus: #f0703f;
+    --focus: #c18a5e;
     --scrim: rgb(0 0 0 / 0.62);
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
     --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -14px rgb(0 0 0 / 0.6);
     --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.35), 0 24px 56px -20px rgb(0 0 0 / 0.75);
-    --shadow-primary: 0 10px 24px -10px rgb(240 112 63 / 0.5);
+    --shadow-primary: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 16px -10px rgb(0 0 0 / 0.7);
     color-scheme: dark;
   }
 
@@ -119,12 +122,13 @@
   --ink-3: #ad9f94;
   --line: rgb(255 255 255 / 0.1);
   --line-strong: rgb(255 255 255 / 0.18);
-  --primary: #d4501f; /* white text on it stays at 4.5:1 */
+  --primary: #9a5733; /* cognac; white text on it stays above 4.5:1 */
   --on-primary: #ffffff;
-  --accent: #ff9a6a;
-  --accent-soft: rgb(236 106 56 / 0.18);
+  --accent: #d6a87c;
+  --accent-soft: rgb(193 138 94 / 0.16);
+  --brass: #c8a46a;
   --negative: #ff8a80;
-  --focus: #ff9a6a;
+  --focus: #d6a87c;
   --shadow-sm: none;
   color: var(--ink);
   color-scheme: dark;
@@ -147,6 +151,7 @@
   --color-on-panel: var(--on-panel);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-brass: var(--brass);
   --color-positive: var(--positive);
   --color-positive-soft: var(--positive-soft);
   --color-negative: var(--negative);
@@ -256,18 +261,6 @@
 .snap-x-row::-webkit-scrollbar { display: none; }
 .snap-x-row > * { scroll-snap-align: center; scroll-snap-stop: always; }
 
-/* Cameroonian textile accents.
-   Toghu: the North-West region's black velvet with bright geometric embroidery,
-   drawn as a stitched band (dashes read as thread). Ndop: the Grassfields' royal
-   resist-dyed cloth, used only as a whisper-faint texture. */
-.toghu-band {
-  height: 14px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='14' viewBox='0 0 28 14'%3E%3Cpath d='M0 .7H28M0 13.3H28' stroke='%23E8B04B' stroke-width='1' stroke-dasharray='2 1.4'/%3E%3Cpath d='M0 7 7 2.2 14 7 21 11.8 28 7' fill='none' stroke='%23E2622D' stroke-width='1.7' stroke-linejoin='round' stroke-dasharray='2.4 1.1'/%3E%3Cpath d='M21 2.4 23 4.4 21 6.4 19 4.4Z' fill='%23E8B04B'/%3E%3Cpath d='M7 7.6 9 9.6 7 11.6 5 9.6Z' fill='%23F2E8DC'/%3E%3C/svg%3E") repeat-x left center / 28px 14px;
-}
-.ndop {
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56' fill='none' stroke='%23F2E8DC' stroke-width='1'%3E%3Cpath d='M28 6 50 28 28 50 6 28Z'/%3E%3Cpath d='M28 15 41 28 28 41 15 28Z' stroke-dasharray='2 2.5'/%3E%3Ccircle cx='28' cy='28' r='3.2'/%3E%3Cpath d='M0 6A6 6 0 0 0 6 0M50 0A6 6 0 0 0 56 6M56 50A6 6 0 0 0 50 56M6 56A6 6 0 0 0 0 50'/%3E%3C/svg%3E") repeat center / 56px 56px;
-}
-
 /* Dropdown and calendar panels open from their button. */
 @keyframes pop-down {
   from { opacity: 0; transform: translateY(-6px) scale(0.97); }
@@ -299,10 +292,10 @@
   background: conic-gradient(
     from var(--orbit),
     transparent 0deg 190deg,
-    rgb(236 106 56 / 0.25) 250deg,
-    #ec6a38 320deg,
-    #ffb48a 345deg,
-    #fff3ea 357deg,
+    rgb(200 164 106 / 0.18) 250deg,
+    rgb(200 164 106 / 0.7) 320deg,
+    #e6cfa3 345deg,
+    #fbf3e4 357deg,
     transparent 360deg
   );
   /* Keep only the border ring: the padding box minus the content box. */

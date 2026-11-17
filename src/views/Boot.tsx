@@ -13,6 +13,7 @@ import { Button, Card, Field, Input, LogoMark, PinPad, Select, Signature, Spinne
 import { Shell } from "./Shell.tsx";
 import { LanguageSwitch, useLang } from "@/components/i18n.tsx";
 import { applyStoredTheme } from "@/components/theme.tsx";
+import { MotifDivider } from "@/components/motif.tsx";
 import { getLang, locale, plural, t, tk, tMessage } from "@/core/i18n.ts";
 
 type Phase =
@@ -234,14 +235,13 @@ async function loadActor(store: LocalStore, id: string): Promise<Actor | null> {
 function Centered({ children, shopName }: { children: React.ReactNode; shopName?: string | null }) {
   return (
     <main className="theme-panel relative isolate min-h-dvh overflow-hidden bg-[#120d0a] md:grid md:grid-cols-[minmax(0,1.1fr)_minmax(380px,1fr)]">
-      {/* Atmosphere behind everything: graded photo, two drifting orange auroras, grain. */}
+      {/* Atmosphere behind everything: graded photo, two faint drifting brass lights, grain. */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/img/hero-dark.webp" alt="" className="absolute inset-0 size-full animate-kenburns object-cover opacity-[0.22] grayscale md:opacity-[0.08]" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(214_96_44/0.85)_0%,rgb(120_48_20/0.5)_30%,rgb(18_13_10/0.94)_64%,#120d0a_100%)] md:bg-[radial-gradient(120%_80%_at_100%_0%,rgb(160_62_26/0.55),transparent_60%),linear-gradient(#120d0a,#120d0a)]" />
-        <div className="absolute -left-24 -top-24 size-[26rem] animate-glow rounded-full bg-[radial-gradient(circle,rgb(255_140_80/0.42),transparent_65%)] blur-2xl md:left-auto md:right-[-8rem]" />
-        <div className="absolute -bottom-40 right-[-6rem] size-[30rem] animate-glow rounded-full bg-[radial-gradient(circle,rgb(207_74_31/0.28),transparent_65%)] blur-3xl [animation-delay:-4s]" />
-        <div className="ndop absolute inset-0 opacity-[0.035]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(96_68_46/0.6)_0%,rgb(48_34_24/0.55)_30%,rgb(18_13_10/0.94)_64%,#120d0a_100%)] md:bg-[radial-gradient(120%_80%_at_100%_0%,rgb(112_82_54/0.32),transparent_60%),linear-gradient(#120d0a,#120d0a)]" />
+        <div className="absolute -left-24 -top-24 size-[26rem] animate-glow rounded-full bg-[radial-gradient(circle,rgb(200_164_106/0.12),transparent_65%)] blur-2xl md:left-auto md:right-[-8rem]" />
+        <div className="absolute -bottom-40 right-[-6rem] size-[30rem] animate-glow rounded-full bg-[radial-gradient(circle,rgb(140_100_64/0.14),transparent_65%)] blur-3xl [animation-delay:-4s]" />
         <div className="grain absolute inset-0" />
       </div>
 
@@ -311,7 +311,7 @@ function OpenElsewhere({ moved }: { moved: boolean }) {
 function Splash() {
   return (
     <main aria-busy="true" className="flex min-h-dvh items-center justify-center bg-[#120d0a]">
-      <span className="flex size-16 animate-pulse items-center justify-center rounded-[22px] bg-[#1b1410] ring-1 ring-white/10 shadow-[0_14px_32px_-12px_rgb(236_106_56/0.7)]">
+      <span className="flex size-16 animate-pulse items-center justify-center rounded-[22px] bg-[#1b1410] ring-1 ring-white/10 shadow-[0_14px_32px_-14px_rgb(0_0_0/0.8)]">
         <LogoMark className="size-10" />
       </span>
     </main>
@@ -354,10 +354,9 @@ function Showcase({ shopName }: { shopName?: string | null }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/img/hero-dark.webp" alt="" className="absolute inset-0 size-full animate-kenburns object-cover grayscale" />
       {/* Warm grade + vignette over the black-and-white photo. */}
-      <div className="absolute inset-0 bg-[linear-gradient(160deg,rgb(232_110_52/0.55)_0%,rgb(120_46_18/0.35)_38%,rgb(16_11_8/0.92)_78%)] mix-blend-multiply" />
+      <div className="absolute inset-0 bg-[linear-gradient(160deg,rgb(150_112_74/0.42)_0%,rgb(70_50_34/0.35)_38%,rgb(16_11_8/0.92)_78%)] mix-blend-multiply" />
       <div className="absolute inset-0 bg-[radial-gradient(90%_70%_at_30%_100%,rgb(0_0_0/0.75),transparent_70%)]" />
       <div className="rings absolute inset-0 animate-float-slow opacity-70" />
-      <div className="ndop absolute inset-0 opacity-[0.06]" />
       <div className="grain absolute inset-0" />
 
       <div className="relative flex h-full flex-col justify-between p-10 xl:p-14">
@@ -388,8 +387,8 @@ function Showcase({ shopName }: { shopName?: string | null }) {
           <p className="num text-[clamp(72px,min(9vw,17dvh),148px)] font-extrabold leading-[0.85] tracking-[-0.06em] text-white">{time}</p>
           <p className="mt-4 text-lg font-medium text-white/75">{date}</p>
           <div className="mt-[clamp(16px,4dvh,40px)]">
-            {/* Toghu embroidery band in place of a plain rule. */}
-            <div aria-hidden className="toghu-band mb-[clamp(12px,2.5dvh,24px)] opacity-90" />
+            {/* The app's traditional mark: a Ndop lozenge drawn as a brass hairline emblem. */}
+            <MotifDivider className="mb-[clamp(12px,2.5dvh,24px)]" />
             <p className="font-serif text-2xl italic text-white/80">{welcome(now)}</p>
             <p className="mt-1 text-[clamp(40px,4.4vw,68px)] font-extrabold leading-none tracking-[-0.04em] text-white">
               {shopName || t("your shop")}
@@ -406,7 +405,7 @@ function Showcase({ shopName }: { shopName?: string | null }) {
 function Badge3({ icon, children, className }: { icon: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <span className={cx("flex items-center gap-2.5 rounded-2xl bg-white/10 py-2.5 pl-2.5 pr-4 text-sm font-semibold text-white shadow-[0_20px_40px_-20px_rgb(0_0_0/0.8)] ring-1 ring-white/15 backdrop-blur-xl", className)}>
-      <span className="flex size-8 items-center justify-center rounded-xl bg-[#d4501f] shadow-[inset_0_1px_0_rgb(255_255_255/0.3)]">{icon}</span>
+      <span className="flex size-8 items-center justify-center rounded-xl bg-white/8 text-[var(--brass)] ring-1 ring-white/15">{icon}</span>
       {children}
     </span>
   );
@@ -433,7 +432,7 @@ function Brand({ shopName }: { shopName?: string | null }) {
       <div className="relative mb-[clamp(4px,1.4dvh,16px)] flex size-[clamp(56px,8.5dvh,80px)] items-center justify-center [@media(max-height:700px)]:hidden">
         <span aria-hidden className="absolute inset-0 animate-float-slow rounded-full border border-white/15" />
         <span aria-hidden className="absolute inset-2.5 animate-float rounded-full border border-white/20 [animation-delay:-2s]" />
-        <span className="relative flex size-12 items-center justify-center rounded-2xl bg-[#1b1410] ring-1 ring-white/15 shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_12px_28px_-10px_rgb(236_106_56/0.8)]">
+        <span className="relative flex size-12 items-center justify-center rounded-2xl bg-[#1b1410] ring-1 ring-white/15 shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_12px_28px_-14px_rgb(0_0_0/0.8)]">
           <LogoMark className="size-8" />
         </span>
       </div>
@@ -545,7 +544,7 @@ function Login({ store, onSignIn }: { store: LocalStore; onSignIn: (u: Actor) =>
           <div key={user.id} className="animate-rise">
             <div className="mb-[clamp(10px,2.6dvh,28px)] flex flex-col items-center">
               <span className="relative">
-                <span aria-hidden className="absolute -inset-3 animate-glow rounded-[34px] bg-[radial-gradient(circle,rgb(236_106_56/0.55),transparent_70%)] blur-md" />
+                <span aria-hidden className="absolute -inset-3 animate-glow rounded-[34px] bg-[radial-gradient(circle,rgb(200_164_106/0.22),transparent_70%)] blur-md" />
                 <span className="relative block"><Avatar name={user.name} large /></span>
               </span>
               <p className="mt-[clamp(8px,1.8dvh,16px)] font-serif text-[22px] italic leading-none text-ink-2">{t("Hello,")}</p>
@@ -577,7 +576,7 @@ export function Avatar({ name, large, small }: { name: string; large?: boolean; 
     <span
       aria-hidden
       className={cx(
-        "flex shrink-0 items-center justify-center bg-linear-to-br from-[#f59a63] to-[#c2461d] font-display font-bold text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.3)]",
+        "flex shrink-0 items-center justify-center bg-accent-soft font-display font-bold text-accent ring-1 ring-line-strong",
         large ? "size-[clamp(60px,9dvh,80px)] rounded-[clamp(20px,3dvh,26px)] text-2xl" : small ? "size-9 rounded-full text-xs" : "size-11 rounded-2xl text-sm",
       )}
     >

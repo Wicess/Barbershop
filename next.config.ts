@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@libsql/client", "libsql"],
+  // No floating "N" badge while developing (it never shows in the built app anyway).
+  devIndicators: false,
   async headers() {
     return [
       {

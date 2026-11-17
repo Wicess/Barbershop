@@ -155,8 +155,8 @@ export function Shell() {
     <div className="min-h-dvh lg:flex">
       {/* Desktop sidebar */}
       <aside className="no-print sticky top-0 hidden h-dvh w-[272px] shrink-0 flex-col border-r border-line bg-surface px-3 py-5 lg:flex [@media(max-height:680px)]:py-3">
-        <div className="mb-3 flex items-center gap-3 px-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#1b1410] ring-1 ring-white/12 shadow-[0_10px_24px_-12px_rgb(236_106_56/0.7)] [@media(max-height:680px)]:size-9">
+        <div className="mb-6 flex items-center gap-3 px-3 [@media(max-height:760px)]:mb-3">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#1b1410] ring-1 ring-white/12 shadow-[0_8px_20px_-12px_rgb(0_0_0/0.6)] [@media(max-height:680px)]:size-9">
             <LogoMark className="size-7 [@media(max-height:680px)]:size-6" />
           </span>
           <div className="min-w-0">
@@ -164,8 +164,6 @@ export function Shell() {
             <p className="line-clamp-2 font-display text-[14px] font-bold uppercase leading-[1.2] tracking-[0.02em]">{settings.shop_name}</p>
           </div>
         </div>
-        {/* Toghu embroidery band under the shop name (hidden on short windows so the menu still fits). */}
-        <div aria-hidden className="toghu-band mx-3 mb-2.5 shrink-0 opacity-80 [@media(max-height:760px)]:hidden" />
         {/* Every item stays visible: rows shrink with the window's height (between 30 and 44px) instead of scrolling out of sight. */}
         <nav
           className="nav-scroll -mr-2 flex-1 overflow-y-auto pr-2"
@@ -178,11 +176,11 @@ export function Shell() {
               href={`#${n.path}`}
               aria-current={path === n.path ? "page" : undefined}
               className={cx(
-                "flex h-[clamp(24px,calc((100dvh-15.9rem)/var(--nav-n)),44px)] [@media(max-height:680px)]:h-[clamp(22px,calc((100dvh-13.5rem)/var(--nav-n)),44px)] items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.98] [@media(max-height:760px)]:text-[13px]",
-                path === n.path ? "bg-primary text-on-primary shadow-cta" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
+                "flex h-[clamp(24px,calc((100dvh-15.25rem)/var(--nav-n)),44px)] [@media(max-height:680px)]:h-[clamp(22px,calc((100dvh-13.5rem)/var(--nav-n)),44px)] items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.98] [@media(max-height:760px)]:text-[13px]",
+                path === n.path ? "bg-surface-2 text-ink ring-1 ring-line" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
               )}
             >
-              <n.icon className="size-5 shrink-0 [@media(max-height:760px)]:size-[18px]" />
+              <n.icon className={cx("size-5 shrink-0 [@media(max-height:760px)]:size-[18px]", path === n.path && "text-primary")} />
               <span className="truncate">{t(n.label)}</span>
             </a>
           ))}
@@ -213,7 +211,7 @@ export function Shell() {
           {activeTab >= 0 && (
             <span
               aria-hidden
-              className="absolute bottom-1.5 left-1.5 top-1.5 rounded-full bg-primary shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_10px_24px_-8px_rgb(239_116_64/0.85)] transition-transform duration-500 ease-[cubic-bezier(0.34,1.4,0.64,1)]"
+              className="absolute bottom-1.5 left-1.5 top-1.5 rounded-full bg-primary shadow-[inset_0_1px_0_rgb(255_255_255/0.18),var(--shadow-primary)] transition-transform duration-500 ease-[cubic-bezier(0.34,1.4,0.64,1)]"
               style={{ width: `calc((100% - 12px) / ${bottom.length})`, transform: `translateX(${activeTab * 100}%)` }}
             />
           )}

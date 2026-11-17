@@ -612,7 +612,7 @@ export function PinPad({
             key={i}
             className={cx(
               "size-3.5 rounded-full border-2 transition-[background-color,border-color,transform,box-shadow] duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
-              i < pin.length ? "scale-125 border-primary bg-primary shadow-[0_0_14px_2px_rgb(236_106_56/0.6)]" : "border-line-strong",
+              i < pin.length ? "scale-125 border-primary bg-primary" : "border-line-strong",
             )}
           />
         ))}

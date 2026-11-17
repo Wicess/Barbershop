@@ -1,0 +1,523 @@
+@import "tailwindcss";
+
+/* Semantic colour tokens. Components use these names, never raw hex.
+   One warm family: off-white paper, espresso ink, a single burnt-orange accent.
+   Every grey carries the same warm tint, and shadows are tinted brown, not black. */
+:root {
+  --bg: #f6f2ec;
+  --surface: #ffffff;
+  --surface-2: #f1ebe3;
+  --ink: #1c1612;
+  --ink-2: #4f4640;
+  --ink-3: #7b716a;
+  --line: #ece5dc;
+  --line-strong: #d9cfc3;
+  /* Burnt orange: white text on it passes WCAG AA (4.5:1). */
+  --primary: #cf4a1f;
+  --primary-2: #ef7440;
+  --on-primary: #ffffff;
+  --accent: #c2461d;
+  --accent-soft: #fbe8de;
+  /* The espresso panel used for hero cards, the tab bar and the sign-in screen. */
+  --panel: #1f1814;
+  --panel-2: #2c231e;
+  --on-panel: #f7efe8;
+  --positive: #18794e;
+  --positive-soft: #e2f3e9;
+  --negative: #b3261e;
+  --negative-soft: #fbe9e6;
+  --warning: #9a5b00;
+  --warning-soft: #fdf0d8;
+  --focus: #cf4a1f;
+  --scrim: rgb(28 18 12 / 0.48);
+  --shadow-sm: 0 1px 2px rgb(74 42 20 / 0.05), 0 2px 8px -2px rgb(74 42 20 / 0.06);
+  --shadow-md: 0 1px 2px rgb(74 42 20 / 0.05), 0 12px 32px -14px rgb(74 42 20 / 0.18);
+  --shadow-lg: 0 2px 6px rgb(74 42 20 / 0.06), 0 24px 56px -20px rgb(74 42 20 / 0.32);
+  --shadow-primary: 0 10px 24px -10px rgb(207 74 31 / 0.6);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* Dark: near-black with only a breath of warmth, hairline edges instead of
+     brown fills, so cards separate crisply and the orange reads as the accent. */
+  :root {
+    --bg: #0b0a09;
+    --surface: #141210;
+    --surface-2: #1d1a17;
+    --ink: #f7f2ed;
+    --ink-2: #cdc4bc;
+    --ink-3: #958b83;
+    --line: rgb(255 255 255 / 0.08);
+    --line-strong: rgb(255 255 255 / 0.16);
+    --primary: #f0703f;
+    --primary-2: #ff8f5c;
+    --on-primary: #1c0d06;
+    --accent: #f58a5c;
+    --accent-soft: #3a2117;
+    --panel: #1a1714;
+    --panel-2: #26211c;
+    --on-panel: #f7efe8;
+    --positive: #4fd18b;
+    --positive-soft: #10281b;
+    --negative: #f4796f;
+    --negative-soft: #341714;
+    --warning: #f5b544;
+    --warning-soft: #2f2410;
+    --focus: #f0703f;
+    --scrim: rgb(0 0 0 / 0.62);
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -14px rgb(0 0 0 / 0.6);
+    --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.35), 0 24px 56px -20px rgb(0 0 0 / 0.75);
+    --shadow-primary: 0 10px 24px -10px rgb(240 112 63 / 0.5);
+    color-scheme: dark;
+  }
+}
+
+/* A dark espresso area inside a light screen (sign-in, hero cards). Redefines the
+   tokens so every component placed inside it reads correctly on dark. */
+.theme-panel {
+  --bg: #17110e;
+  --surface: rgb(255 255 255 / 0.07);
+  --surface-2: rgb(255 255 255 / 0.11);
+  --ink: #f7efe8;
+  --ink-2: #dacdc2;
+  --ink-3: #ad9f94;
+  --line: rgb(255 255 255 / 0.1);
+  --line-strong: rgb(255 255 255 / 0.18);
+  --primary: #d4501f; /* white text on it stays at 4.5:1 */
+  --on-primary: #ffffff;
+  --accent: #ff9a6a;
+  --accent-soft: rgb(236 106 56 / 0.18);
+  --negative: #ff8a80;
+  --focus: #ff9a6a;
+  --shadow-sm: none;
+  color: var(--ink);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-primary: var(--primary);
+  --color-primary-2: var(--primary-2);
+  --color-on-primary: var(--on-primary);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-on-panel: var(--on-panel);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-negative: var(--negative);
+  --color-negative-soft: var(--negative-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-focus: var(--focus);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
+  --font-display: var(--font-unbounded), var(--font-geist-sans), ui-sans-serif, sans-serif;
+  --animate-kenburns: kenburns 28s ease-in-out infinite alternate;
+  --animate-sheen: sheen 6s ease-in-out infinite;
+  --animate-sheet-up: sheet-up 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-page-in: page-in 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  --animate-pop: pop 260ms cubic-bezier(0.23, 1, 0.32, 1);
+  --animate-toast-in: toast-in 280ms cubic-bezier(0.23, 1, 0.32, 1);
+  --animate-rise: rise 520ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-float-slow: float 11s ease-in-out infinite;
+  --animate-glow: glow 9s ease-in-out infinite;
+  --shadow-card: var(--shadow-sm);
+  --shadow-raised: var(--shadow-md);
+  --shadow-float: var(--shadow-lg);
+  --shadow-cta: var(--shadow-primary);
+}
+
+/* Content arrives: a short rise and fade. */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+/* Decorative drift for rings, glows and photos. Never on anything you tap. */
+@keyframes float {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50% { transform: translate3d(0, -8px, 0) rotate(1.5deg); }
+}
+/* Slow photographic push-in behind the sign-in screen. */
+@keyframes kenburns {
+  from { transform: scale(1.12) translate3d(-1.5%, 1%, 0); }
+  to { transform: scale(1) translate3d(0, 0, 0); }
+}
+/* Screen changes, like a native app: tabs swap in place with a soft settle;
+   deeper screens slide in from the right (an iOS push). */
+@keyframes tab-in {
+  from { opacity: 0; transform: scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes push-in {
+  from { opacity: 0; transform: translate3d(28px, 0, 0); }
+  to { opacity: 1; transform: none; }
+}
+/* No fill-mode on purpose: a transform kept after the animation would make the
+   screen a stacking context and trap its sheets beneath the floating tab bar. */
+.screen-tab { animation: tab-in 360ms var(--ease-out); }
+.screen-push { animation: push-in 420ms cubic-bezier(0.32, 0.72, 0, 1); }
+
+/* Content rises in as it scrolls into view (scroll-driven; no JavaScript). */
+@keyframes reveal {
+  from { opacity: 0; transform: translate3d(0, 26px, 0) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+@supports (animation-timeline: view()) {
+  .reveal {
+    animation: reveal linear both;
+    animation-timeline: view();
+    animation-range: entry 0% cover 24%;
+  }
+}
+
+/* A slow band of light that sweeps across hero cards now and then. */
+@keyframes sweep {
+  0%, 62% { transform: translate3d(-120%, 0, 0) skewX(-18deg); }
+  100% { transform: translate3d(260%, 0, 0) skewX(-18deg); }
+}
+.shine::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.07), transparent);
+  animation: sweep 7.5s var(--ease-in-out) infinite;
+}
+
+/* Liquid glass: frosted, saturated, with a bright top edge catching the light. */
+.glass {
+  background: color-mix(in oklab, var(--panel) 72%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 -1px 0 rgb(0 0 0 / 0.25),
+    var(--shadow-lg);
+}
+
+/* Carousels: native-feeling horizontal snap, no scrollbar. */
+.snap-x-row {
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+.snap-x-row::-webkit-scrollbar { display: none; }
+.snap-x-row > * { scroll-snap-align: center; scroll-snap-stop: always; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .shine::before { animation: none !important; }
+}
+
+/* Installed app: no browser-ish touches anywhere. */
+@media (display-mode: standalone) {
+  html, body { -webkit-user-select: none; user-select: none; }
+  input, textarea, select { -webkit-user-select: text; user-select: text; }
+}
+
+/* Success rings: expand once from the check and fade. */
+@keyframes ripple {
+  from { transform: scale(0.85); opacity: 1; }
+  to { transform: scale(1.9); opacity: 0; }
+}
+/* Progress bars fill from the left on arrival. */
+@keyframes grow {
+  from { transform: scaleX(0.04); }
+  to { transform: none; }
+}
+@keyframes glow {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.85; }
+  50% { transform: translate3d(-14px, 10px, 0) scale(1.12); opacity: 1; }
+}
+
+/* Children of .stagger cascade in, 45 ms apart. Decorative only: nothing waits on it. */
+.stagger > * {
+  animation: rise 520ms var(--ease-out) both;
+}
+.stagger > :nth-child(2) { animation-delay: 45ms; }
+.stagger > :nth-child(3) { animation-delay: 90ms; }
+.stagger > :nth-child(4) { animation-delay: 135ms; }
+.stagger > :nth-child(5) { animation-delay: 180ms; }
+.stagger > :nth-child(6) { animation-delay: 225ms; }
+.stagger > :nth-child(7) { animation-delay: 270ms; }
+.stagger > :nth-child(8) { animation-delay: 315ms; }
+.stagger > :nth-child(n + 9) { animation-delay: 350ms; }
+
+/* Pressable surfaces: instant, physical feedback. */
+.press {
+  transition: transform 160ms var(--ease-out), box-shadow 220ms var(--ease-out), background-color 160ms ease;
+}
+.press:active {
+  transform: scale(0.97);
+}
+@media (hover: hover) and (pointer: fine) {
+  .lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+/* Concentric rings drawn behind hero cards, like a soundwave. */
+.rings {
+  background:
+    repeating-radial-gradient(circle at 100% 0%, transparent 0 18px, rgb(255 255 255 / 0.07) 18px 19px);
+  -webkit-mask-image: radial-gradient(circle at 100% 0%, #000 0, transparent 72%);
+  mask-image: radial-gradient(circle at 100% 0%, #000 0, transparent 72%);
+}
+/* Fine grain so large flat colour areas don't look sterile. */
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.09;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  border-radius: inherit;
+}
+/* Photos fade in when loaded rather than popping. */
+.photo {
+  background: var(--surface-2);
+}
+.photo img {
+  transition: opacity 400ms ease, transform 600ms var(--ease-out);
+}
+.photo img[data-loaded="false"] {
+  opacity: 0;
+  transform: scale(1.04);
+}
+
+@keyframes sheen {
+  0%, 100% { background-position: 100% 50%; }
+  50% { background-position: 0% 50%; }
+}
+@keyframes sheet-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-feature-settings: "cv11", "ss01";
+  touch-action: manipulation;
+  /* No browser pull-to-refresh or bounce: the app has its own pull-to-sync. */
+  overscroll-behavior-y: none;
+}
+
+/* App chrome behaves like native UI: no text selection or long-press callouts on controls. */
+button, a, nav, label, [role="tab"], [role="radio"], [role="switch"], h1, h2, .select-none {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+input, textarea, select {
+  -webkit-user-select: text;
+  user-select: text;
+}
+img {
+  -webkit-user-drag: none;
+}
+
+/* On touch screens, list rows that highlight on hover highlight while pressed instead. */
+@media (hover: none) {
+  .hover\:bg-surface-2:active {
+    background-color: var(--surface-2);
+  }
+}
+
+/* Horizontal chip rows: no scrollbar, soft fade at the edges, snap to chips. */
+.chip-scroll {
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  /* Snap the first chip to the page gutter, not the screen edge (where the fade mask would eat it). */
+  scroll-padding-inline: 16px;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 16px, #000 calc(100% - 24px), transparent 100%);
+}
+.chip-scroll::-webkit-scrollbar {
+  display: none;
+}
+.chip-scroll > * {
+  scroll-snap-align: start;
+}
+/* Rows that scroll on phones but lay out flat on desktop: no edge fade there.
+   (Plain CSS, because the fade above is unlayered and beats Tailwind utilities.) */
+@media (min-width: 64rem) {
+  .flat-lg {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+html {
+  scroll-behavior: smooth;
+}
+
+/* Scrollbars in the app's own colours: a slim warm track with a rounded thumb
+   that turns orange while you hover or drag it. */
+/* Chrome 121+ drops the ::-webkit-scrollbar styling below whenever the standard
+   properties are set, so those are only given to browsers without it (Firefox). */
+@supports not selector(::-webkit-scrollbar) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) var(--bg);
+  }
+  .nav-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .nav-scroll:hover {
+    scrollbar-color: rgb(255 255 255 / 0.18) transparent;
+  }
+}
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--line-strong);
+  border: 3px solid var(--bg);
+  border-radius: 999px;
+  transition: background-color 200ms ease;
+}
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--primary);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
+/* Sidebar menu: hairline thumb that only shows while the pointer is over it. */
+.nav-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.nav-scroll::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border: 0;
+}
+.nav-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: rgb(255 255 255 / 0.18);
+}
+.nav-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: var(--primary);
+}
+h1, h2, h3 {
+  text-wrap: balance;
+}
+
+/* ---------- printing ---------- */
+.print-only {
+  display: none;
+}
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    color: #000;
+    background: #fff;
+  }
+  .print-only {
+    display: block;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+.receipt {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #000;
+  background: #fff;
+}
+.receipt[data-width="58"] { width: 48mm; }
+.receipt[data-width="80"] { width: 72mm; }
+.receipt[data-width="a4"] { width: 100%; max-width: 160mm; font-size: 13px; }
+.report-print {
+  color: #000;
+  background: #fff;
+  font-size: 12px;
+}
+.report-print table { width: 100%; border-collapse: collapse; }
+.report-print th, .report-print td { border-bottom: 1px solid #ccc; padding: 4px 6px; text-align: left; }
+.report-print td.r, .report-print th.r { text-align: right; }

@@ -1,0 +1,526 @@
+"use client";
+
+import {
+  AlertTriangle, ArrowRight, ArrowUpRight, Banknote, CalendarCheck, CheckCircle2, Contact, DatabaseBackup, HandCoins,
+  PackageOpen, ReceiptText, ShoppingBag, TrendingDown, TrendingUp,
+} from "lucide-react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useApp, useQuery } from "@/client/app-context.tsx";
+import { go } from "@/client/router.ts";
+import { addDays, addMonths, currentMonth, dayCount, daysInMonth, formatDate, formatMonth, presetPeriod, toBusinessDate } from "@/core/dates.ts";
+import { cashFigures, lowStock, periodSummary, revenueUntil, staffPerformance, topItems } from "@/core/reports.ts";
+import { Bars } from "@/components/charts.tsx";
+import { InstallCard } from "@/components/native.tsx";
+import { BACKUP_REMINDER_DAYS, useLastBackup } from "@/components/DataSafety.tsx";
+import { itemImage, Photo, sectionImage } from "@/components/media.tsx";
+import { Card, CountUp, Money, SectionTitle, Spinner, cx, useMoney } from "@/components/ui.tsx";
+
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+}
+
+export function HomeView() {
+  const { user, can } = useApp();
+  const fmt = useMoney();
+  const today = toBusinessDate();
+  const month = presetPeriod("month");
+  const week = presetPeriod("week");
+  const { data } = useQuery(async (db) => {
+    const close = await db.get<{ counted: number; variance: number }>("SELECT counted, variance FROM day_closes WHERE business_date = ?", [today]);
+    const yesterday = addDays(today, -1);
+    // Same weekday last week, up to this time of day: a fair comparison mid-day.
+    const lastWeekDate = addDays(today, -7);
+    const lastWeekNow = new Date(Date.now() - 7 * 86400000).toISOString();
+    const unclosed = await db.get<{ business_date: string }>(
+      `SELECT s.business_date FROM sales s WHERE s.status = 'completed' AND s.business_date BETWEEN ? AND ?
+          AND NOT EXISTS (SELECT 1 FROM day_closes c WHERE c.business_date = s.business_date)
+        ORDER BY s.business_date DESC LIMIT 1`,
+      [addDays(today, -7), yesterday],
+    );
+    return {
+      lastWeek: await revenueUntil(db, lastWeekDate, lastWeekNow),
+      lowStock: can("stock.manage") ? await lowStock(db) : [],
+      unclosed: unclosed?.business_date ?? null,
+      anySales: !!(await db.get("SELECT 1 AS x FROM sales LIMIT 1")),
+      today: await periodSummary(db, today, today),
+      week: await periodSummary(db, week.from, today),
+      month: can("reports.profit") ? await periodSummary(db, month.from, month.to) : null,
+      top: await topItems(db, month.from, today, 10),
+      staff: await staffPerformance(db, today, today),
+      cash: await cashFigures(db, today),
+      close,
+      openingFloat: Number((await db.get<{ value: string }>("SELECT value FROM settings WHERE id = 'opening_float'"))?.value ?? 0),
+      // Last month's stored close, shown during the first week of the new month.
+      lastClose:
+        can("reports.profit") && Number(today.slice(8, 10)) <= 7
+          ? await db.get<{ month: string; days: number; revenue: number; net_profit: number; staff_pay: number }>(
+              "SELECT month, days, revenue, net_profit, staff_pay FROM month_closes WHERE id = ?",
+              [`month-${addMonths(currentMonth(), -1)}`],
+            )
+          : undefined,
+    };
+  }, [today]);
+
+  const lastBackup = useLastBackup();
+  if (!data) return <Spinner />;
+  const needBackup =
+    can("settings.manage") && data.anySales && (!lastBackup || Date.now() - Date.parse(lastBackup) > BACKUP_REMINDER_DAYS * 86400000);
+  const t = data.today;
+  const change = data.lastWeek > 0 ? Math.round(((t.revenue - data.lastWeek) / data.lastWeek) * 100) : null;
+  const weekday = formatDate(addDays(today, -7), { weekday: "short" });
+  const maxSection = Math.max(1, ...t.departments.map((d) => d.revenue));
+  const expectedCash = data.openingFloat + data.cash.cashSales - data.cash.cashOut;
+
+  return (
+    <div>
+      <h1 className="sr-only">Home</h1>
+      <InstallCard />
+
+      {/* Wide screens: hero on the left, the three figures stacked beside it. */}
+      <div className="xl:grid xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:gap-4">
+      {/* Hero carousel: Today / This week / This month. Swipe, tap a dot, or let it glide on its own. */}
+      <HeroCarousel
+        greeting={`${greeting()},`}
+        name={user.name.split(" ")[0]}
+        date={formatDate(today, { weekday: "short", day: "numeric", month: "short" })}
+        slides={[
+          {
+            key: "today",
+            photo: "/img/hero-shop.webp",
+            label: "Sales today",
+            amount: t.revenue,
+            badge:
+              change != null ? (
+                <span
+                  className={cx(
+                    "mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold",
+                    change >= 0 ? "bg-[#4fd18b]/15 text-[#7be2a9]" : "bg-[#ff8a80]/15 text-[#ffb0a8]",
+                  )}
+                >
+                  {change >= 0 ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
+                  {change >= 0 ? "+" : ""}{change}% vs last {weekday}
+                </span>
+              ) : null,
+            sub: `${t.sales} receipt${t.sales === 1 ? "" : "s"}${data.close ? " · day closed" : ""}`,
+          },
+          {
+            key: "week",
+            photo: "/img/barber-cut.webp",
+            label: "This week",
+            amount: data.week.revenue,
+            sub: `${data.week.sales} receipt${data.week.sales === 1 ? "" : "s"} · about ${fmt(Math.round(data.week.revenue / dayCount(week.from, today)))} a day`,
+          },
+          ...(data.month
+            ? [{
+                key: "month",
+                photo: "/img/salon.webp",
+                label: `${formatMonth(currentMonth())} so far`,
+                amount: data.month.revenue,
+                sub: `Net profit ${fmt(data.month.netProfit)}`,
+                progress: { day: Number(today.slice(8, 10)), of: daysInMonth(currentMonth()) },
+              }]
+            : []),
+        ]}
+      >
+        <div className="mt-5 flex gap-2">
+          <button
+            onClick={() => go("/sell")}
+            className="press flex min-h-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-bold text-[#1f1814] shadow-[0_10px_24px_-12px_rgb(0_0_0/0.6)] sm:flex-none"
+          >
+            <ShoppingBag className="size-4 text-primary" /> New sale
+          </button>
+          <button
+            onClick={() => go("/close")}
+            className="press flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-surface px-4 text-sm font-semibold text-ink ring-1 ring-line backdrop-blur hover:bg-surface-2"
+          >
+            <CalendarCheck className="size-4" /> Close day
+          </button>
+        </div>
+      </HeroCarousel>
+
+      {/* Figures: tap a tile to open the full screen. */}
+      <div className="stagger mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:mt-0 xl:grid-cols-1 xl:grid-rows-3">
+        <Tile label="Cash in drawer" hint={data.close ? "Counted & closed" : "Expected now"} onClick={() => go("/close")}>
+          <CountUp value={expectedCash} format={fmt} />
+        </Tile>
+        {data.month ? (
+          <>
+            <Tile label="This month" hint="Revenue" onClick={() => go("/reports")}>
+              <CountUp value={data.month.revenue} format={fmt} />
+            </Tile>
+            <Tile
+              label="Net profit"
+              hint="After pay & expenses"
+              tone={data.month.netProfit >= 0 ? "positive" : "negative"}
+              onClick={() => go("/reports")}
+              className="col-span-2 sm:col-span-1"
+            >
+              <CountUp value={data.month.netProfit} format={fmt} />
+            </Tile>
+          </>
+        ) : (
+          <Tile label="Receipts today" hint="Completed sales" onClick={() => go("/sales")}>
+            {t.sales}
+          </Tile>
+        )}
+      </div>
+      </div>
+
+      {data.lastClose && (
+        <button
+          onClick={() => go("/months", { m: data.lastClose!.month })}
+          className="press mt-3 flex w-full cursor-pointer items-center gap-3.5 rounded-[22px] bg-surface p-3 pr-4 text-left ring-1 ring-line hover:bg-surface-2"
+        >
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-positive-soft text-positive">
+            <CheckCircle2 className="size-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">
+              {formatMonth(data.lastClose.month)} is closed · {data.lastClose.days} days
+            </span>
+            <span className="block truncate text-xs text-ink-3">
+              Revenue {fmt(data.lastClose.revenue)} · net profit {fmt(data.lastClose.net_profit)} · staff pay {fmt(data.lastClose.staff_pay)}
+            </span>
+          </span>
+          <ArrowRight className="size-4 shrink-0 text-ink-3" />
+        </button>
+      )}
+
+      {(data.unclosed || data.lowStock.length > 0 || needBackup) && (
+        <div className="stagger mt-3 space-y-2">
+          {needBackup && (
+            <Nudge
+              icon={DatabaseBackup}
+              tone="accent"
+              title={lastBackup ? `No backup for ${Math.floor((Date.now() - Date.parse(lastBackup)) / 86400000)} days` : "Take your first backup"}
+              onClick={() => go("/backup")}
+            >
+              Save a copy to Google Drive or email. It takes a few seconds.
+            </Nudge>
+          )}
+          {data.unclosed && (
+            <Nudge
+              icon={AlertTriangle}
+              tone="warning"
+              title={`${formatDate(data.unclosed, { weekday: "long", day: "numeric", month: "short" })} was not closed`}
+              onClick={() => go("/close", { date: data.unclosed! })}
+            >
+              Count that day&apos;s cash so the drawer is checked.
+            </Nudge>
+          )}
+          {data.lowStock.length > 0 && (
+            <Nudge
+              icon={PackageOpen}
+              tone="warning"
+              title={`Running low on ${data.lowStock.length} item${data.lowStock.length === 1 ? "" : "s"}`}
+              onClick={() => go("/catalog")}
+            >
+              {data.lowStock.slice(0, 4).map((p) => `${p.name} (${p.on_hand})`).join(", ")}
+            </Nudge>
+          )}
+        </div>
+      )}
+
+      {/* Quick actions */}
+      <div className="chip-scroll flat-lg stagger -mx-4 mt-6 flex scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:auto-cols-fr lg:grid-flow-col lg:overflow-visible lg:px-0">
+        <Action icon={ShoppingBag} label="Sell" onClick={() => go("/sell")} primary />
+        {can("expense.create") && <Action icon={Banknote} label="Expense" onClick={() => go("/expenses", { add: "1" })} />}
+        <Action icon={ReceiptText} label="Receipts" onClick={() => go("/sales")} />
+        {can("payroll.view") && <Action icon={HandCoins} label="Earnings" onClick={() => go("/earnings")} />}
+        <Action icon={Contact} label="Clients" onClick={() => go("/clients")} />
+        <Action icon={CalendarCheck} label="Close day" onClick={() => go("/close")} />
+      </div>
+
+      {/* Best sellers this month: a swipeable shelf of photo cards. */}
+      {data.top.length > 0 && (
+        <section className="reveal">
+          <SectionTitle action={can("reports.daily") && <SeeAll onClick={() => go("/reports")}>See all</SeeAll>}>Best sellers this month</SectionTitle>
+          <div className="snap-x-row -mx-4 flex gap-3 overflow-x-auto scroll-px-4 px-4 pb-2">
+            {data.top.map((it, i) => (
+              <button
+                key={it.name + i}
+                onClick={() => go("/sell")}
+                className="press group relative w-[46%] max-w-[230px] shrink-0 cursor-pointer overflow-hidden rounded-[22px] text-left ring-1 ring-line sm:w-[210px]"
+              >
+                <Photo src={itemImage(it.name, it.department ?? "")} alt="" className="aspect-[3/4] w-full" imgClassName="transition-transform duration-700 group-hover:scale-[1.06]" />
+                <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,transparent_35%,rgb(14_10_8/0.88))]" />
+                <span className="absolute left-2.5 top-2.5 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-bold text-[#1c1612] backdrop-blur">#{i + 1}</span>
+                <span className="absolute inset-x-0 bottom-0 p-3 text-white">
+                  <span className="block truncate text-[15px] font-bold leading-tight">{it.name}</span>
+                  <span className="mt-0.5 flex items-center justify-between gap-2 text-xs text-white/80">
+                    <span>{it.qty} sold</span>
+                    <Money value={it.revenue} className="font-bold text-white" />
+                  </span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="reveal grid gap-x-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <section>
+          <SectionTitle action={can("reports.daily") && <SeeAll onClick={() => go("/reports")}>See report</SeeAll>}>Today by section</SectionTitle>
+          {/* Photo cards: name and takings over a dark fade, like a shop window. */}
+          <ul className="stagger grid grid-cols-2 gap-3 xl:grid-cols-3">
+            {t.departments.map((d, i) => {
+              const top = d.revenue > 0 && d.revenue === maxSection;
+              return (
+                <li key={d.id} className={cx(t.departments.length % 2 === 1 && i === 0 && "col-span-2")}>
+                  <button
+                    onClick={() => go("/sell")}
+                    className="press group relative block w-full cursor-pointer overflow-hidden rounded-[22px] text-left ring-1 ring-line"
+                  >
+                    <Photo
+                      src={sectionImage(d.name, d.kind)}
+                      alt=""
+                      className={cx("w-full", t.departments.length % 2 === 1 && i === 0 ? "aspect-[16/9] lg:aspect-[21/8] xl:aspect-[8/3]" : "aspect-[4/5] sm:aspect-[4/3]")}
+                      imgClassName="transition-transform duration-700 ease-[var(--ease-out)] group-hover:scale-[1.05]"
+                    />
+                    <span aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,transparent_38%,rgb(14_10_8/0.35)_58%,rgb(14_10_8/0.88)_100%)]" />
+                    <span
+                      className={cx(
+                        "absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.06em] backdrop-blur-md",
+                        top ? "bg-primary text-white" : d.items ? "bg-white/90 text-[#1c1612]" : "bg-black/40 text-white/85",
+                      )}
+                    >
+                      {top ? "Top today" : d.items ? `${d.items} sold` : "No sales yet"}
+                    </span>
+                    <span className="absolute inset-x-0 bottom-0 p-3.5 text-white">
+                      <Money value={d.revenue} className="block text-[17px] font-extrabold leading-tight tracking-tight" />
+                      <span className="mt-0.5 block truncate text-[12px] font-semibold uppercase tracking-[0.08em] text-white/80">{d.name}</span>
+                      <span className="mt-2 block h-[3px] overflow-hidden rounded-full bg-white/20" aria-hidden>
+                        <span
+                          className="block h-full origin-left animate-[grow_900ms_var(--ease-out)_both] rounded-full bg-primary-2"
+                          style={{ width: `${(d.revenue / maxSection) * 100}%` }}
+                        />
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+        <section>
+          <SectionTitle action={can("payroll.view") && <SeeAll onClick={() => go("/earnings")}>Earnings</SeeAll>}>Today by staff</SectionTitle>
+          <Card className="animate-rise p-5">
+            {data.staff.length === 0 ? (
+              <p className="py-4 text-center text-sm text-ink-3">No services recorded yet today.</p>
+            ) : (
+              <Bars rows={data.staff.map((s) => ({ label: s.name, value: s.revenue, sub: `${s.services} service${s.services === 1 ? "" : "s"}` }))} />
+            )}
+          </Card>
+        </section>
+      </div>
+
+      {data.month && (
+        <section className="reveal">
+          <SectionTitle action={<SeeAll onClick={() => go("/reports")}>Full report</SeeAll>}>Profit by section this month</SectionTitle>
+          <Card className="animate-rise p-5">
+            <Bars signed rows={data.month.departments.filter((d) => d.revenue || d.profit).map((d) => ({ label: d.name, value: d.profit }))} />
+            {data.month.departments.every((d) => !d.revenue && !d.profit) && (
+              <p className="py-4 text-center text-sm text-ink-3">No sales this month yet.</p>
+            )}
+          </Card>
+        </section>
+      )}
+    </div>
+  );
+}
+
+interface HeroSlide {
+  key: string;
+  photo: string;
+  label: string;
+  amount: number;
+  badge?: ReactNode;
+  sub: string;
+  progress?: { day: number; of: number };
+}
+
+/**
+ * The hero: an espresso card whose figures swipe between Today, This week and
+ * This month. The photo behind cross-fades with the slide. It glides to the
+ * next slide on its own every few seconds, but never while someone is touching
+ * it, shortly after they did, when the tab is hidden, or with reduced motion.
+ */
+function HeroCarousel({ greeting: hello, name, date, slides, children }: { greeting: string; name: string; date: string; slides: HeroSlide[]; children: ReactNode }) {
+  const fmt = useMoney();
+  const track = useRef<HTMLDivElement>(null);
+  const [index, setIndex] = useState(0);
+  const touched = useRef(0);
+
+  useEffect(() => {
+    const el = track.current;
+    if (!el) return;
+    const onScroll = () => setIndex(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)));
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    if (slides.length < 2 || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const id = setInterval(() => {
+      const el = track.current;
+      if (!el || document.hidden || Date.now() - touched.current < 9000) return;
+      const next = (Math.round(el.scrollLeft / el.clientWidth) + 1) % slides.length;
+      el.scrollTo({ left: next * el.clientWidth, behavior: "smooth" });
+    }, 6500);
+    return () => clearInterval(id);
+  }, [slides.length]);
+
+  const show = (i: number) => {
+    touched.current = Date.now();
+    track.current?.scrollTo({ left: i * track.current.clientWidth, behavior: "smooth" });
+  };
+
+  return (
+    <section
+      onPointerDown={() => (touched.current = Date.now())}
+      className="theme-panel grain shine relative isolate flex animate-rise flex-col overflow-hidden rounded-[30px] bg-panel py-5 shadow-float ring-1 ring-white/10 sm:py-7 xl:py-9"
+    >
+      {slides.map((s, i) => (
+        <Photo
+          key={s.key}
+          src={s.photo}
+          alt=""
+          priority={i === 0}
+          className={cx(
+            "absolute inset-0 -z-20 transition-[opacity,transform] duration-[1200ms] ease-[var(--ease-out)] [mask-image:linear-gradient(105deg,transparent_22%,#000_92%)]",
+            i === index ? "scale-100 opacity-35 dark:opacity-50" : "scale-[1.06] opacity-0",
+          )}
+        />
+      ))}
+      <div aria-hidden className="absolute -right-16 -top-20 -z-10 size-72 animate-glow rounded-full bg-[radial-gradient(circle,rgb(239_116_64/0.55),transparent_65%)] blur-2xl" />
+      <div aria-hidden className="rings absolute inset-0 -z-10 animate-float-slow" />
+
+      <div className="flex items-start justify-between gap-3 px-5 sm:px-7 xl:px-9">
+        <div>
+          <p className="text-sm font-medium text-ink-2">{hello}</p>
+          <p className="text-xl font-bold tracking-tight">{name}</p>
+        </div>
+        <p className="rounded-full bg-surface px-3 py-1.5 text-xs font-semibold text-ink-2 ring-1 ring-line backdrop-blur">{date}</p>
+      </div>
+
+      <div ref={track} className="snap-x-row mt-6 flex overflow-x-auto xl:mt-auto xl:pt-8" aria-roledescription="carousel" aria-label="Takings">
+        {slides.map((s, i) => (
+          <div key={s.key} className="w-full shrink-0 px-5 sm:px-7 xl:px-9" role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${slides.length}: ${s.label}`}>
+            <p className="text-sm font-medium text-ink-2">{s.label}</p>
+            <div className="mt-1 flex flex-wrap items-end gap-x-3 gap-y-1">
+              <CountUp value={s.amount} format={fmt} className="font-display text-[34px] font-bold leading-none tracking-[-0.04em] sm:text-[44px] xl:text-[56px]" />
+              {s.badge}
+            </div>
+            <p className="mt-1.5 text-sm text-ink-3">{s.sub}</p>
+            {s.progress && (
+              <div className="mt-3 flex items-center gap-3">
+                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
+                  <span className="block h-full rounded-full bg-linear-to-r from-primary-2 to-primary" style={{ width: `${(s.progress.day / s.progress.of) * 100}%` }} />
+                </span>
+                <span className="shrink-0 text-xs font-semibold text-ink-2">Day {s.progress.day} of {s.progress.of}</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="px-5 sm:px-7 xl:px-9">
+        {slides.length > 1 && (
+          <div className="mt-4 flex items-center gap-1.5" role="tablist" aria-label="Choose a period">
+            {slides.map((s, i) => (
+              <button
+                key={s.key}
+                role="tab"
+                aria-selected={i === index}
+                aria-label={s.label}
+                onClick={() => show(i)}
+                className="flex h-6 cursor-pointer items-center"
+              >
+                <span className={cx("block h-1.5 rounded-full transition-[width,background-color] duration-500 ease-[var(--ease-out)]", i === index ? "w-6 bg-primary" : "w-1.5 bg-white/30")} />
+              </button>
+            ))}
+          </div>
+        )}
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function Tile({
+  label, hint, tone, onClick, className, children,
+}: { label: string; hint?: string; tone?: "positive" | "negative"; onClick: () => void; className?: string; children: ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cx(
+        "press lift @container flex min-h-[116px] min-w-0 cursor-pointer flex-col rounded-3xl bg-surface p-4 text-left shadow-card ring-1 ring-line/70",
+        className,
+      )}
+    >
+      <span className="flex w-full items-start justify-between gap-2">
+        <span className="text-[13px] font-semibold text-ink-2">{label}</span>
+        <ArrowUpRight className="size-4 shrink-0 text-ink-3" />
+      </span>
+      <span
+        className={cx(
+          "num mt-auto whitespace-nowrap pt-3 text-[clamp(15px,12.5cqi,26px)] font-extrabold leading-none tracking-[-0.03em]",
+          tone === "positive" && "text-positive",
+          tone === "negative" && "text-negative",
+        )}
+      >
+        {children}
+      </span>
+      {hint && <span className="mt-1.5 text-xs text-ink-3">{hint}</span>}
+    </button>
+  );
+}
+
+function Action({
+  icon: Icon, label, onClick, primary,
+}: { icon: ComponentType<{ className?: string }>; label: string; onClick: () => void; primary?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cx(
+        "press flex h-[92px] w-[88px] shrink-0 cursor-pointer flex-col items-center justify-center gap-2.5 rounded-[20px] transition-[background-color,box-shadow] duration-200 lg:h-[76px] lg:w-auto lg:flex-row lg:gap-3",
+        primary ? "bg-primary text-on-primary shadow-cta" : "bg-surface text-ink ring-1 ring-line-strong hover:bg-surface-2",
+      )}
+    >
+      <Icon className="size-[26px] stroke-[1.6]" />
+      <span className={cx("text-[13px] font-medium", primary ? "text-on-primary" : "text-ink-2")}>{label}</span>
+    </button>
+  );
+}
+
+function Nudge({
+  icon: Icon, tone, title, onClick, children,
+}: { icon: ComponentType<{ className?: string }>; tone: "accent" | "warning"; title: string; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="press flex w-full cursor-pointer items-center gap-3 rounded-[22px] bg-surface p-3 pr-4 text-left text-sm shadow-card ring-1 ring-line/70 hover:bg-surface-2"
+    >
+      <span className={cx("flex size-11 shrink-0 items-center justify-center rounded-2xl", tone === "accent" ? "bg-accent-soft text-accent" : "bg-warning-soft text-warning")}>
+        <Icon className="size-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold">{title}</span>
+        <span className="block truncate text-xs text-ink-3">{children}</span>
+      </span>
+      <ArrowRight className="size-4 shrink-0 text-ink-3" />
+    </button>
+  );
+}
+
+function SeeAll({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="min-h-11 cursor-pointer px-1 text-sm font-medium text-ink-2 underline decoration-line-strong decoration-1 underline-offset-[5px] transition-colors hover:text-ink hover:decoration-ink"
+    >
+      {children}
+    </button>
+  );
+}

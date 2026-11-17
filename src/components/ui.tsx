@@ -10,6 +10,7 @@ import { useApp } from "@/client/app-context.tsx";
 import { plural, t, tMessage } from "@/core/i18n.ts";
 import { formatMoney, parseMoney, toInputValue } from "@/core/money.ts";
 import { haptic, useBackTarget, useLargeTitle, useMediaQuery } from "./native.tsx";
+import { goBack as goBackInApp, useCanGoBack } from "@/client/router.ts";
 import { DateInput, inputClass } from "./pickers.tsx";
 
 export function cx(...parts: (string | false | null | undefined)[]) {
@@ -76,11 +77,13 @@ export function PageHeader({
 }: { title: string; subtitle?: ReactNode; back?: () => void; actions?: ReactNode }) {
   const titleRef = useLargeTitle(title);
   const stackBack = useBackTarget();
-  const goBack = back ?? (stackBack ? () => (window.location.hash = stackBack) : null);
+  const canBack = useCanGoBack();
+  // Back to the previous screen (and where it was scrolled to); on a first screen, phones fall back to the menu.
+  const goBack = back ?? (canBack ? goBackInApp : stackBack ? () => (window.location.hash = stackBack) : null);
   return (
     <header className="no-print animate-rise mb-5 flex items-start gap-2">
       {goBack && (
-        <IconButton label={t("Back")} onClick={goBack} className={cx("-ml-1 mt-0.5 bg-surface shadow-card ring-1 ring-line", !back && "lg:hidden")}>
+        <IconButton label={t("Back")} onClick={goBack} className={cx("back-btn -ml-1 mt-0.5 bg-surface shadow-card ring-1 ring-line", !back && !canBack && "lg:hidden")}>
           <ChevronLeft className="size-6" />
         </IconButton>
       )}

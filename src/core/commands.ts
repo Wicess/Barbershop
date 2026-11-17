@@ -236,6 +236,9 @@ export function lineTotal(l: Pick<SaleLineInput, "qty" | "unit_price" | "discoun
 
 type Handler<K extends CommandType> = (ctx: Ctx, payload: Payloads[K], settings: Settings) => Promise<void>;
 
+/** The note stored on a day the app closed by itself (shown translated on screen). */
+export const AUTO_CLOSE_NOTE = "Closed automatically at 11:59 pm. The cash was not counted.";
+
 const handlers: { [K in CommandType]: Handler<K> } = {
   async "sale.create"(ctx, p, settings) {
     need(ctx, "sale.create");
@@ -641,15 +644,28 @@ const handlers: { [K in CommandType]: Handler<K> } = {
     await audit(ctx, "stock.move", "products", String(p.product_id), `Stock ${p.reason}: ${product.name} ${Number(p.qty) > 0 ? "+" : ""}${p.qty}`);
   },
 
+  /**
+   * Close a business day. A person closes it by counting the drawer. If nobody
+   * does, the app closes it on its own at 11:59 pm by the device's clock
+   * (`auto`): it stores the expected cash, marks the day as not counted, and
+   * never replaces a day that was already closed (so two devices closing the
+   * same day at midnight just record it once).
+   */
   async "day.close"(ctx, p) {
     need(ctx, "cash.close");
     check(isDate(p.business_date), "Invalid date.");
     const id = `close-${p.business_date}`;
     const existing = await getRow(ctx, "day_closes", id);
+    const auto = p.auto === true;
+    if (auto && existing) return;
     if (existing) need(ctx, "cash.reclose");
-    for (const k of ["opening_float", "cash_sales", "cash_out", "expected", "counted"]) {
+    for (const k of ["opening_float", "cash_sales", "cash_out", "expected"]) {
       check(isInt(p[k]), "Invalid cash count.");
     }
+    if (!auto) check(isInt(p.counted), "Invalid cash count.");
+    // An automatic close is stamped 11:59 pm of its own day, even when it runs the next morning.
+    const closedAt = auto && typeof p.closed_at === "string" && !Number.isNaN(Date.parse(p.closed_at)) ? p.closed_at : ctx.cmd.at;
+    const counted = auto ? Number(p.expected) : Number(p.counted);
     await put(ctx, "day_closes", {
       id,
       business_date: p.business_date,
@@ -657,13 +673,19 @@ const handlers: { [K in CommandType]: Handler<K> } = {
       cash_sales: p.cash_sales,
       cash_out: p.cash_out,
       expected: p.expected,
-      counted: p.counted,
-      variance: Number(p.counted) - Number(p.expected),
-      note: text(p.note) || null,
+      counted,
+      variance: counted - Number(p.expected),
+      note: auto ? AUTO_CLOSE_NOTE : text(p.note) || null,
       closed_by: ctx.actor.id,
-      closed_at: ctx.cmd.at,
+      closed_at: closedAt,
     });
-    await audit(ctx, "day.close", "day_closes", id, `Closed ${p.business_date}: counted ${p.counted}, expected ${p.expected}`);
+    await audit(
+      ctx,
+      "day.close",
+      "day_closes",
+      id,
+      auto ? `Closed ${p.business_date} automatically at 11:59 pm: expected ${p.expected}, not counted` : `Closed ${p.business_date}: counted ${p.counted}, expected ${p.expected}`,
+    );
   },
 
   async "user.upsert"(ctx, p) {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import initSqlJs from "sql.js";
-import { applyCommand, CommandError, staffRate, type Actor, type CommandType, type Payloads } from "../src/core/commands.ts";
+import { applyCommand, AUTO_CLOSE_NOTE, CommandError, staffRate, type Actor, type CommandType, type Payloads } from "../src/core/commands.ts";
 import { can } from "../src/core/permissions.ts";
 import { upsert, type Db, type Store } from "../src/core/db.ts";
 import { schemaStatements } from "../src/core/schema.ts";
@@ -206,6 +206,32 @@ test("cash-up expected cash accounts for drawer expenses and advances", async ()
   assert.equal(f.cashSales, KES(900));
   assert.equal(f.cashOut, KES(150));
   assert.deepEqual(f.otherMethods, [{ method: "mobile", amount: KES(600) }]);
+});
+
+test("a day nobody counted closes on its own at 11:59 pm, once, and a later count replaces it", async () => {
+  const store = await shop();
+  await exec(store, cashier, "sale.create", sale("1", [cut("l1", "st-ali")], [{ id: "p1", method: "cash", amount: KES(500), reference: null }]));
+  const f = await cashFigures(store, "2026-10-15");
+  const auto = { business_date: "2026-10-15", opening_float: KES(200), cash_sales: f.cashSales, cash_out: f.cashOut, expected: KES(200) + f.cashSales - f.cashOut, auto: true, closed_at: "2026-10-15T22:59:00.000Z" };
+  // The device runs it the next morning: still stamped 11:59 pm of that day.
+  await exec(store, cashier, "day.close", auto, "2026-10-16T07:30:00.000Z");
+  let row = await store.get<Record<string, unknown>>("SELECT * FROM day_closes WHERE business_date = '2026-10-15'");
+  assert.equal(row?.closed_at, "2026-10-15T22:59:00.000Z");
+  assert.equal(row?.note, AUTO_CLOSE_NOTE);
+  assert.equal(row?.counted, row?.expected); // no count was made, so no made-up difference
+  assert.equal(row?.variance, 0);
+
+  // A second device closing the same day at midnight changes nothing (and isn't an error, even for a cashier).
+  await exec(store, cashier, "day.close", { ...auto, expected: 1, closed_at: "2026-10-15T22:59:30.000Z" });
+  row = await store.get<Record<string, unknown>>("SELECT * FROM day_closes WHERE business_date = '2026-10-15'");
+  assert.equal(row?.expected, KES(700));
+
+  // The manager counts the drawer later: the real count replaces the automatic close.
+  await exec(store, manager, "day.close", { ...auto, auto: undefined, counted: KES(680), note: "" });
+  row = await store.get<Record<string, unknown>>("SELECT * FROM day_closes WHERE business_date = '2026-10-15'");
+  assert.equal(row?.counted, KES(680));
+  assert.equal(row?.variance, KES(-20));
+  assert.equal(row?.note, null);
 });
 
 test("fixed monthly costs post once per month even if triggered twice", async () => {

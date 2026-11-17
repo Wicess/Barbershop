@@ -39,6 +39,7 @@ const AUDIT_TEMPLATES = [
   tk("Stock spoilage: {product} {qty}"),
   tk("Stock adjustment: {product} {qty}"),
   tk("Closed {date}: counted {counted}, expected {expected}"),
+  tk("Closed {date} automatically at 11:59 pm: expected {expected}, not counted"),
   tk("Closed {month} ({days} days): revenue {revenue}, net profit {profit}, staff pay {pay}"),
   tk("Recalculated {month} ({days} days): revenue {revenue}, net profit {profit}, staff pay {pay}"),
   tk("Updated user {name} as {role} (PIN changed)"),

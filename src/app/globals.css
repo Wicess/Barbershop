@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* "dash": a computer screen big enough to show a whole page (Home) without scrolling. */
+@custom-variant dash (@media (min-width: 1280px) and (min-height: 680px));
+/* The same, on a shorter window (most laptops): tighter spacing so the panels keep room. */
+@custom-variant dash-short (@media (min-width: 1280px) and (min-height: 680px) and (max-height: 840px));
+
 /* Semantic colour tokens. Components use these names, never raw hex.
    One warm family: off-white paper, espresso ink, a single burnt-orange accent.
    Every grey carries the same warm tint, and shadows are tinted brown, not black. */
@@ -349,6 +354,73 @@
 .stagger > :nth-child(7) { animation-delay: 270ms; }
 .stagger > :nth-child(8) { animation-delay: 315ms; }
 .stagger > :nth-child(n + 9) { animation-delay: 350ms; }
+
+/* Home quick actions, choreographed: they rise out of a soft blur one after
+   another (70 ms apart); each icon then floats slowly, out of phase with its
+   neighbours, so the row seems to breathe; on hover a button lifts and picks up
+   a brass edge; and a sheen crosses Sell now and then. All of it stops under
+   reduced motion. */
+@keyframes flow-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.95); filter: blur(8px); }
+  55% { filter: blur(0); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes drift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes qa-sheen {
+  0%, 62% { background-position: 160% 0; }
+  100% { background-position: -60% 0; }
+}
+/* "backwards", not "both": once in, the hover lift still works. */
+.qa > * { animation: flow-in 760ms var(--ease-out) backwards; }
+.qa > :nth-child(2) { animation-delay: 70ms; }
+.qa > :nth-child(3) { animation-delay: 140ms; }
+.qa > :nth-child(4) { animation-delay: 210ms; }
+.qa > :nth-child(5) { animation-delay: 280ms; }
+.qa > :nth-child(6) { animation-delay: 350ms; }
+.qa-btn {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition: transform 320ms var(--ease-out), box-shadow 320ms var(--ease-out), background-color 200ms ease;
+}
+.qa-icon {
+  animation: drift 6.5s ease-in-out infinite;
+  transition: transform 320ms var(--ease-out), background-color 200ms ease;
+}
+.qa > :nth-child(2) .qa-icon { animation-delay: -1.1s; }
+.qa > :nth-child(3) .qa-icon { animation-delay: -2.2s; }
+.qa > :nth-child(4) .qa-icon { animation-delay: -3.3s; }
+.qa > :nth-child(5) .qa-icon { animation-delay: -4.4s; }
+.qa > :nth-child(6) .qa-icon { animation-delay: -5.5s; }
+@media (hover: hover) and (pointer: fine) {
+  .qa-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md), inset 0 0 0 1px color-mix(in oklab, var(--brass) 60%, transparent);
+  }
+  .qa-btn:hover .qa-icon {
+    animation-play-state: paused;
+    transform: translateY(-2px) scale(1.08);
+  }
+}
+.qa-btn:active { transform: scale(0.97); transition-duration: 120ms; }
+.qa-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.2) 50%, transparent 65%) no-repeat;
+  background-size: 250% 100%;
+  animation: qa-sheen 6s ease-in-out infinite;
+  pointer-events: none;
+}
+/* Back button: the chevron leans the way it goes. */
+@media (hover: hover) and (pointer: fine) {
+  .back-btn svg { transition: transform 260ms var(--ease-out); }
+  .back-btn:hover svg { transform: translateX(-2px); }
+}
 
 /* Pressable surfaces: instant, physical feedback. */
 .press {

@@ -7,6 +7,7 @@ import {
 import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { useApp, useQuery } from "@/client/app-context.tsx";
 import { go } from "@/client/router.ts";
+import { AUTO_CLOSE_NOTE } from "@/core/commands.ts";
 import { addDays, addMonths, currentMonth, dayCount, daysInMonth, formatDate, formatMonth, presetPeriod, toBusinessDate } from "@/core/dates.ts";
 import { cashFigures, lowStock, periodSummary, revenueUntil, staffPerformance, topItems } from "@/core/reports.ts";
 import { Bars } from "@/components/charts.tsx";
@@ -28,7 +29,7 @@ export function HomeView() {
   const month = presetPeriod("month");
   const week = presetPeriod("week");
   const { data } = useQuery(async (db) => {
-    const close = await db.get<{ counted: number; variance: number }>("SELECT counted, variance FROM day_closes WHERE business_date = ?", [today]);
+    const close = await db.get<{ counted: number; variance: number; note: string | null }>("SELECT counted, variance, note FROM day_closes WHERE business_date = ?", [today]);
     const yesterday = addDays(today, -1);
     // Same weekday last week, up to this time of day: a fair comparison mid-day.
     const lastWeekDate = addDays(today, -7);
@@ -74,12 +75,13 @@ export function HomeView() {
   const expectedCash = data.openingFloat + data.cash.cashSales - data.cash.cashOut;
 
   return (
-    <div>
+    // Big computer screens: the whole dashboard fits the window (main's padding is 5.5rem); panels scroll inside.
+    <div className="dash:flex dash:h-[calc(100dvh-5.5rem)] dash:flex-col">
       <h1 className="sr-only">{t("Home")}</h1>
       <InstallCard />
 
       {/* Wide screens: hero on the left, the three figures stacked beside it. */}
-      <div className="xl:grid xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:gap-4">
+      <div className="xl:grid xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] xl:gap-4 dash:shrink-0">
       {/* Hero carousel: Today / This week / This month. Swipe, tap a dot, or let it glide on its own. */}
       <HeroCarousel
         greeting={t("{greeting},", { greeting: greeting() })}
@@ -126,7 +128,7 @@ export function HomeView() {
             : []),
         ]}
       >
-        <div className="mt-5 flex gap-2">
+        <div className="mt-5 flex gap-2 dash:mt-3">
           <button
             onClick={() => go("/sell")}
             className="press flex min-h-12 flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-bold text-[#1f1814] shadow-[0_10px_24px_-12px_rgb(0_0_0/0.6)] sm:flex-none"
@@ -144,7 +146,7 @@ export function HomeView() {
 
       {/* Figures: tap a tile to open the full screen. */}
       <div className="stagger mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:mt-0 xl:grid-cols-1 xl:grid-rows-3">
-        <Tile label={t("Cash in drawer")} hint={data.close ? t("Counted & closed") : t("Expected now")} onClick={() => go("/close")}>
+        <Tile label={t("Cash in drawer")} hint={data.close ? (data.close.note === AUTO_CLOSE_NOTE ? t("Closed automatically") : t("Counted & closed")) : t("Expected now")} onClick={() => go("/close")}>
           <CountUp value={expectedCash} format={fmt} />
         </Tile>
         {data.month ? (
@@ -170,10 +172,11 @@ export function HomeView() {
       </div>
       </div>
 
+      <div className="dash:mt-3 dash-short:mt-2 dash:grid dash:shrink-0 dash:auto-cols-fr dash:grid-flow-col dash:gap-3 dash:empty:hidden">
       {data.lastClose && (
         <button
           onClick={() => go("/months", { m: data.lastClose!.month })}
-          className="press mt-3 flex w-full cursor-pointer items-center gap-3.5 rounded-[22px] bg-surface p-3 pr-4 text-left ring-1 ring-line hover:bg-surface-2"
+          className="press mt-3 flex w-full cursor-pointer items-center gap-3.5 rounded-[22px] bg-surface p-3 pr-4 text-left ring-1 ring-line hover:bg-surface-2 dash:mt-0"
         >
           <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-positive-soft text-positive">
             <CheckCircle2 className="size-5" />
@@ -195,7 +198,7 @@ export function HomeView() {
       )}
 
       {(data.unclosed || data.lowStock.length > 0 || needBackup) && (
-        <div className="stagger mt-3 space-y-2">
+        <div className="stagger mt-3 space-y-2 dash:contents">
           {needBackup && (
             <Nudge
               icon={DatabaseBackup}
@@ -233,8 +236,10 @@ export function HomeView() {
         </div>
       )}
 
+      </div>
+
       {/* Quick actions */}
-      <div className="chip-scroll flat-lg stagger -mx-4 mt-6 flex scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 lg:mx-0 lg:grid lg:auto-cols-fr lg:grid-flow-col lg:overflow-visible lg:px-0">
+      <div className="chip-scroll flat-lg qa -mx-4 mt-6 flex scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 pt-1 lg:mx-0 lg:grid lg:auto-cols-fr lg:grid-flow-col lg:gap-4 lg:overflow-visible lg:px-0 dash:mt-4 dash-short:mt-3 dash:shrink-0 dash:pb-0">
         <Action icon={ShoppingBag} label={t("Sell")} onClick={() => go("/sell")} primary />
         {can("expense.create") && <Action icon={Banknote} label={t("Expense")} onClick={() => go("/expenses", { add: "1" })} />}
         <Action icon={ReceiptText} label={t("Receipts")} onClick={() => go("/sales")} />
@@ -245,7 +250,7 @@ export function HomeView() {
 
       {/* Best sellers this month: a swipeable shelf of photo cards. */}
       {data.top.length > 0 && (
-        <section className="reveal">
+        <section className="reveal dash:hidden">
           <SectionTitle action={can("reports.daily") && <SeeAll onClick={() => go("/reports")}>{t("See all")}</SeeAll>}>{t("Best sellers this month")}</SectionTitle>
           <div className="snap-x-row -mx-4 flex gap-3 overflow-x-auto scroll-px-4 px-4 pb-2">
             {data.top.map((it, i) => (
@@ -270,7 +275,7 @@ export function HomeView() {
         </section>
       )}
 
-      <div className="reveal grid gap-x-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="reveal grid gap-x-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] dash:hidden">
         <section>
           <SectionTitle action={can("reports.daily") && <SeeAll onClick={() => go("/reports")}>{t("See report")}</SeeAll>}>{t("Today by section")}</SectionTitle>
           {/* Photo cards: name and takings over a dark fade, like a shop window. */}
@@ -339,7 +344,93 @@ export function HomeView() {
       )}
         </div>
       </div>
+
+      {/* Big screens: three panels fill the rest of the window; long lists scroll inside them. */}
+      <div className="hidden dash:mt-4 dash-short:mt-2 dash:grid dash:min-h-0 dash:flex-1 dash:grid-cols-3 dash:gap-4">
+        <Panel title={t("Best sellers this month")} action={can("reports.daily") && <SeeAll onClick={() => go("/reports")}>{t("See all")}</SeeAll>}>
+          {data.top.length === 0 ? (
+            <p className="py-6 text-center text-sm text-ink-3">{t("No sales this month yet.")}</p>
+          ) : (
+            <ol className="divide-y divide-line">
+              {data.top.map((it, i) => (
+                <li key={it.name + i} className="flex items-center gap-3 py-2">
+                  <span className="num w-4 shrink-0 text-xs font-bold text-ink-3">{i + 1}</span>
+                  <Photo src={itemImage(it.name, it.department ?? "")} alt="" className="size-10 shrink-0 overflow-hidden rounded-xl ring-1 ring-line" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">{t(it.name)}</span>
+                    <span className="block text-xs text-ink-3">{t("{n} sold", { n: it.qty })}</span>
+                  </span>
+                  <Money value={it.revenue} className="shrink-0 text-sm font-bold" />
+                </li>
+              ))}
+            </ol>
+          )}
+        </Panel>
+
+        <Panel title={t("Today by section")} action={can("reports.daily") && <SeeAll onClick={() => go("/reports")}>{t("See report")}</SeeAll>}>
+          <ul className="divide-y divide-line">
+            {td.departments.map((d) => {
+              const top = d.revenue > 0 && d.revenue === maxSection;
+              return (
+                <li key={d.id}>
+                  <button onClick={() => go("/sell")} className="flex w-full cursor-pointer items-center gap-3 py-2 text-left">
+                    <Photo src={sectionImage(d.name, d.kind)} alt="" className="size-10 shrink-0 overflow-hidden rounded-xl ring-1 ring-line" />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="truncate text-sm font-semibold">{t(d.name)}</span>
+                        <Money value={d.revenue} className="shrink-0 text-sm font-bold" />
+                      </span>
+                      <span className="mt-1 flex items-center gap-2">
+                        <span className="h-1 flex-1 overflow-hidden rounded-full bg-surface-2" aria-hidden>
+                          <span className="block h-full rounded-full bg-accent" style={{ width: `${(d.revenue / maxSection) * 100}%` }} />
+                        </span>
+                        <span className={cx("shrink-0 text-[11px]", top ? "font-semibold text-accent" : "text-ink-3")}>
+                          {top ? t("Top today") : d.items ? t("{n} sold", { n: d.items }) : t("No sales yet")}
+                        </span>
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </Panel>
+
+        <Panel title={t("Today by staff")} action={can("payroll.view") && <SeeAll onClick={() => go("/earnings")}>{t("Earnings")}</SeeAll>}>
+          {data.staff.length === 0 ? (
+            <p className="py-4 text-center text-sm text-ink-3">{t("No services recorded yet today.")}</p>
+          ) : (
+            <Bars rows={data.staff.map((s) => ({ label: s.name, value: s.revenue, sub: plural(s.services, "{n} service", "{n} services") }))} />
+          )}
+          {data.month && (
+            <>
+              <div className="mb-3 mt-5 flex items-center justify-between gap-2 border-t border-line pt-4">
+                <h3 className="text-[15px] font-bold tracking-[-0.01em]">{t("Profit by section this month")}</h3>
+                <SeeAll onClick={() => go("/reports")}>{t("Full report")}</SeeAll>
+              </div>
+              {data.month.departments.every((d) => !d.revenue && !d.profit) ? (
+                <p className="py-2 text-center text-sm text-ink-3">{t("No sales this month yet.")}</p>
+              ) : (
+                <Bars signed rows={data.month.departments.filter((d) => d.revenue || d.profit).map((d) => ({ label: t(d.name), value: d.profit }))} />
+              )}
+            </>
+          )}
+        </Panel>
+      </div>
     </div>
+  );
+}
+
+/** A dashboard panel: a title row, then content that scrolls inside if it's long. */
+function Panel({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+  return (
+    <section className="flex min-h-0 flex-col rounded-3xl bg-surface shadow-card ring-1 ring-line/70">
+      <div className="flex shrink-0 items-center justify-between gap-2 px-5 pb-1 pt-4 dash-short:pt-3">
+        <h2 className="text-[15px] font-bold tracking-[-0.01em]">{title}</h2>
+        {action}
+      </div>
+      <div className="nav-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-3">{children}</div>
+    </section>
   );
 }
 
@@ -392,7 +483,7 @@ function HeroCarousel({ greeting: hello, name, date, slides, children }: { greet
   return (
     <section
       onPointerDown={() => (touched.current = Date.now())}
-      className="theme-panel grain shine relative isolate flex animate-rise flex-col overflow-hidden rounded-[30px] bg-panel py-5 shadow-float ring-1 ring-white/10 sm:py-7 xl:py-9"
+      className="theme-panel grain shine relative isolate flex animate-rise flex-col overflow-hidden rounded-[30px] bg-panel py-5 shadow-float ring-1 ring-white/10 sm:py-7 xl:py-9 dash:py-6 dash-short:py-4"
     >
       {slides.map((s, i) => (
         <Photo
@@ -406,7 +497,7 @@ function HeroCarousel({ greeting: hello, name, date, slides, children }: { greet
           )}
         />
       ))}
-      <div aria-hidden className="absolute -right-16 -top-20 -z-10 size-72 animate-glow rounded-full bg-[radial-gradient(circle,rgb(239_116_64/0.55),transparent_65%)] blur-2xl" />
+      <div aria-hidden className="absolute -right-16 -top-20 -z-10 size-72 animate-glow rounded-full bg-[radial-gradient(circle,rgb(200_164_106/0.22),transparent_65%)] blur-2xl" />
       <div aria-hidden className="rings absolute inset-0 -z-10 animate-float-slow" />
 
       <div className="flex items-start justify-between gap-3 px-5 sm:px-7 xl:px-9">
@@ -417,7 +508,7 @@ function HeroCarousel({ greeting: hello, name, date, slides, children }: { greet
         <p className="rounded-full bg-surface px-3 py-1.5 text-xs font-semibold text-ink-2 ring-1 ring-line backdrop-blur">{date}</p>
       </div>
 
-      <div ref={track} className="snap-x-row mt-6 flex overflow-x-auto xl:mt-auto xl:pt-8" aria-roledescription="carousel" aria-label={t("Takings")}>
+      <div ref={track} className="snap-x-row mt-6 flex overflow-x-auto xl:mt-auto xl:pt-8 dash:pt-3 dash-short:pt-1" aria-roledescription="carousel" aria-label={t("Takings")}>
         {slides.map((s, i) => (
           <div key={s.key} className="w-full shrink-0 px-5 sm:px-7 xl:px-9" role="group" aria-roledescription="slide" aria-label={t("{i} of {total}: {label}", { i: i + 1, total: slides.length, label: s.label })}>
             <p className="text-sm font-medium text-ink-2">{s.label}</p>
@@ -440,7 +531,7 @@ function HeroCarousel({ greeting: hello, name, date, slides, children }: { greet
 
       <div className="px-5 sm:px-7 xl:px-9">
         {slides.length > 1 && (
-          <div className="mt-4 flex items-center gap-1.5" role="tablist" aria-label={t("Choose a period")}>
+          <div className="mt-4 flex items-center gap-1.5 dash:mt-2" role="tablist" aria-label={t("Choose a period")}>
             {slides.map((s, i) => (
               <button
                 key={s.key}
@@ -468,7 +559,7 @@ function Tile({
     <button
       onClick={onClick}
       className={cx(
-        "press lift @container flex min-h-[116px] min-w-0 cursor-pointer flex-col rounded-3xl bg-surface p-4 text-left shadow-card ring-1 ring-line/70",
+        "press lift @container flex min-h-[116px] min-w-0 cursor-pointer flex-col rounded-3xl bg-surface p-4 text-left shadow-card ring-1 ring-line/70 dash:min-h-0 dash:px-4 dash:py-3 dash-short:rounded-2xl dash-short:py-2.5",
         className,
       )}
     >
@@ -476,16 +567,18 @@ function Tile({
         <span className="text-[13px] font-semibold text-ink-2">{label}</span>
         <ArrowUpRight className="size-4 shrink-0 text-ink-3" />
       </span>
-      <span
-        className={cx(
-          "num mt-auto whitespace-nowrap pt-3 text-[clamp(15px,12.5cqi,26px)] font-extrabold leading-none tracking-[-0.03em]",
-          tone === "positive" && "text-positive",
-          tone === "negative" && "text-negative",
-        )}
-      >
-        {children}
+      <span className="mt-auto flex flex-col dash:flex-row dash:items-baseline dash:justify-between dash:gap-3">
+        <span
+          className={cx(
+            "num whitespace-nowrap pt-3 text-[clamp(15px,12.5cqi,26px)] font-extrabold leading-none tracking-[-0.03em] dash:pt-2 dash-short:pt-1 dash-short:text-[22px]",
+            tone === "positive" && "text-positive",
+            tone === "negative" && "text-negative",
+          )}
+        >
+          {children}
+        </span>
+        {hint && <span className="mt-1.5 truncate text-xs text-ink-3 dash:mt-0">{hint}</span>}
       </span>
-      {hint && <span className="mt-1.5 text-xs text-ink-3">{hint}</span>}
     </button>
   );
 }
@@ -497,12 +590,21 @@ function Action({
     <button
       onClick={onClick}
       className={cx(
-        "press flex h-[92px] w-[88px] shrink-0 cursor-pointer flex-col items-center justify-center gap-2.5 rounded-[20px] transition-[background-color,box-shadow] duration-200 lg:h-[76px] lg:w-auto lg:flex-row lg:gap-3",
-        primary ? "bg-primary text-on-primary shadow-cta" : "bg-surface text-ink ring-1 ring-line-strong hover:bg-surface-2",
+        "qa-btn flex h-[96px] w-[92px] shrink-0 cursor-pointer flex-col items-center justify-center gap-2.5 rounded-[22px] lg:h-[76px] lg:w-auto lg:flex-row lg:gap-3.5 dash:h-14 dash:rounded-2xl dash-short:h-12",
+        primary
+          ? "qa-primary bg-[linear-gradient(135deg,var(--primary-2),var(--primary))] text-on-primary shadow-[var(--shadow-primary)]"
+          : "bg-surface text-ink shadow-card ring-1 ring-line hover:bg-surface-2",
       )}
     >
-      <Icon className="size-[26px] stroke-[1.6]" />
-      <span className={cx("text-[13px] font-medium", primary ? "text-on-primary" : "text-ink-2")}>{label}</span>
+      <span
+        className={cx(
+          "qa-icon flex size-10 items-center justify-center rounded-full dash:size-9 dash-short:size-8",
+          primary ? "bg-white/20 ring-1 ring-white/25" : "bg-surface-2 text-primary ring-1 ring-line",
+        )}
+      >
+        <Icon className="size-5 stroke-[1.7] dash-short:size-[18px]" />
+      </span>
+      <span className={cx("text-[13px] font-semibold tracking-[-0.01em]", primary ? "text-on-primary" : "text-ink-2")}>{label}</span>
     </button>
   );
 }
@@ -513,7 +615,7 @@ function Nudge({
   return (
     <button
       onClick={onClick}
-      className="press flex w-full cursor-pointer items-center gap-3 rounded-[22px] bg-surface p-3 pr-4 text-left text-sm shadow-card ring-1 ring-line/70 hover:bg-surface-2"
+      className="press flex w-full cursor-pointer items-center gap-3 rounded-[22px] bg-surface p-3 pr-4 text-left text-sm shadow-card ring-1 ring-line/70 hover:bg-surface-2 dash-short:py-2"
     >
       <span className={cx("flex size-11 shrink-0 items-center justify-center rounded-2xl", tone === "accent" ? "bg-accent-soft text-accent" : "bg-warning-soft text-warning")}>
         <Icon className="size-5" />

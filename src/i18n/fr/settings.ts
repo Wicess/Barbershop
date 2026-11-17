@@ -160,6 +160,7 @@ export const settings: Record<string, string> = {
   "Stock spoilage: {product} {qty}": "Perte de stock : {product} {qty}",
   "Stock adjustment: {product} {qty}": "Ajustement de stock : {product} {qty}",
   "Closed {date}: counted {counted}, expected {expected}": "Journée du {date} clôturée : compté {counted}, attendu {expected}",
+  "Closed {date} automatically at 11:59 pm: expected {expected}, not counted": "Journée du {date} clôturée automatiquement à 23 h 59 : attendu {expected}, non comptée",
   "Closed {month} ({days} days): revenue {revenue}, net profit {profit}, staff pay {pay}":
     "Mois {month} clôturé ({days} jours) : chiffre d'affaires {revenue}, bénéfice net {profit}, paie {pay}",
   "Recalculated {month} ({days} days): revenue {revenue}, net profit {profit}, staff pay {pay}":

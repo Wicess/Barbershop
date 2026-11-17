@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Printer, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Clock3, Printer, TriangleAlert } from "lucide-react";
 import { useApp, useQuery } from "@/client/app-context.tsx";
 import { setParams } from "@/client/router.ts";
-import { PAYMENT_LABEL } from "@/core/commands.ts";
+import { AUTO_CLOSE_NOTE, PAYMENT_LABEL } from "@/core/commands.ts";
 import { formatDate, formatDateTime, toBusinessDate } from "@/core/dates.ts";
 import { formatMoney } from "@/core/money.ts";
 import { t } from "@/core/i18n.ts";
@@ -116,6 +116,7 @@ export function CloseDayView({ params }: { params: URLSearchParams }) {
             {recount && (
               <Button className="mt-2 lg:mt-0 lg:w-auto" variant="ghost" block onClick={() => setRecount(false)}>{t("Cancel")}</Button>
             )}
+            {!recount && date === today && <p className="mt-3 text-xs text-ink-3 lg:mr-auto lg:mt-0">{t("If nobody closes it, the day closes on its own at 11:59 pm.")}</p>}
           </div>
         </Card>
       ) : (
@@ -128,10 +129,22 @@ export function CloseDayView({ params }: { params: URLSearchParams }) {
 function CloseResult({
   close, figures, onRecount, settings,
 }: { close: CloseRow; figures: CashFigures; onRecount?: () => void; settings: Settings }) {
+  const auto = close.note === AUTO_CLOSE_NOTE;
   const ok = close.variance === 0;
   const short = close.variance < 0;
   return (
     <div className="lg:grid lg:grid-cols-2 lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-6">
+      {auto ? (
+        <Card className="flex items-center gap-3 p-4 lg:col-start-1 lg:row-start-1">
+          <Clock3 className="size-8 shrink-0 text-warning" />
+          <div>
+            <p className="text-lg font-bold">{t("Closed automatically")}</p>
+            <p className="text-sm text-ink-3">
+              {t("At 11:59 pm on {date}. The cash was not counted.", { date: formatDate(close.business_date, { weekday: "long", day: "numeric", month: "long" }) })}
+            </p>
+          </div>
+        </Card>
+      ) : (
       <Card className={cx("flex items-center gap-3 p-4 lg:col-start-1 lg:row-start-1", ok ? "border-positive/40" : "border-negative/40")}>
         {ok ? <CheckCircle2 className="size-8 shrink-0 text-positive" /> : <TriangleAlert className="size-8 shrink-0 text-negative" />}
         <div>
@@ -143,8 +156,9 @@ function CloseResult({
           </p>
         </div>
       </Card>
+      )}
       <Card className="mt-3 p-4 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0">
-        <CashTable close={close} />
+        <CashTable close={close} counted={!auto} />
         {figures.otherMethods.length > 0 && (
           <div className="mt-4 border-t border-line pt-3">
             <p className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-ink-3">{t("Not in the drawer — check against statements")}</p>
@@ -156,19 +170,19 @@ function CloseResult({
             ))}
           </div>
         )}
-        {close.note && <p className="mt-3 rounded-xl bg-surface-2 p-3 text-sm">{close.note}</p>}
+        {close.note && !auto && <p className="mt-3 rounded-xl bg-surface-2 p-3 text-sm">{close.note}</p>}
       </Card>
       <div className="mt-3 flex gap-2 lg:col-start-1 lg:row-start-2">
         <Button variant="secondary" className="flex-1" onClick={() => printContent(<ClosePrint close={close} figures={figures} settings={settings} />)}>
           <Printer className="size-4" /> {t("Print")}
         </Button>
-        {onRecount && <Button variant="secondary" className="flex-1" onClick={onRecount}>{t("Count again")}</Button>}
+        {onRecount && <Button variant={auto ? "primary" : "secondary"} className="flex-1" onClick={onRecount}>{auto ? t("Count the cash") : t("Count again")}</Button>}
       </div>
     </div>
   );
 }
 
-function CashTable({ close }: { close: CloseRow }) {
+function CashTable({ close, counted = true }: { close: CloseRow; counted?: boolean }) {
   const row = (label: string, value: number, bold?: boolean) => (
     <div className={cx("flex justify-between py-1 text-sm", bold && "border-t border-line-strong pt-2 font-bold")}>
       <span>{label}</span>
@@ -181,8 +195,8 @@ function CashTable({ close }: { close: CloseRow }) {
       {row(`+ ${t("Cash sales")}`, close.cash_sales)}
       {row(`− ${t("Cash paid out (expenses, advances, stock)")}`, -close.cash_out)}
       {row(t("Expected in drawer"), close.expected, true)}
-      {row(t("Counted"), close.counted)}
-      {row(t("Difference"), close.variance, true)}
+      {counted && row(t("Counted"), close.counted)}
+      {counted && row(t("Difference"), close.variance, true)}
     </div>
   );
 }
@@ -203,15 +217,14 @@ function ClosePrint({ close, figures, settings }: { close: CloseRow; figures: Ca
         [t("Staff money from drawer"), m(figures.tillStaffMoney)],
         [t("Stock bought from drawer"), m(figures.tillStockPurchases)],
         [t("Expected"), m(close.expected)],
-        [t("Counted"), m(close.counted)],
-        [t("Difference"), m(close.variance)],
+        ...(close.note === AUTO_CLOSE_NOTE ? [] : [[t("Counted"), m(close.counted)], [t("Difference"), m(close.variance)]]),
         ...figures.otherMethods.map((o) => [t(PAYMENT_LABEL[o.method] ?? o.method), m(o.amount)]),
       ].map(([k, v]) => (
         <div key={k} className="flex justify-between"><span>{k}</span><span>{v}</span></div>
       ))}
       <div className="my-1.5 border-t border-dashed border-black" />
       <div>{t("Closed by {name}, {date}", { name: close.closed_by_name ?? "—", date: formatDateTime(close.closed_at) })}</div>
-      {close.note && <div>{t("Note: {note}", { note: close.note })}</div>}
+      {close.note && <div>{close.note === AUTO_CLOSE_NOTE ? t(AUTO_CLOSE_NOTE) : t("Note: {note}", { note: close.note })}</div>}
       <div className="mt-6">{t("Signature:")} ________________</div>
     </div>
   );

@@ -5,9 +5,10 @@ import {
   RefreshCw, Settings as SettingsIcon, HandCoins, Contact, DatabaseBackup, ArrowLeftRight, ShoppingBag, Users, Wallet, Banknote, AlertTriangle,
   CalendarRange,
 } from "lucide-react";
-import { useCallback, useEffect, type ComponentType } from "react";
+import { useCallback, useEffect, useRef, type ComponentType } from "react";
 import { haptic, PullToRefresh, setBackTarget, useCollapsedTitle } from "@/components/native.tsx";
-import { addMonths, currentMonth, monthOf } from "@/core/dates.ts";
+import { addDays, addMonths, currentMonth, monthOf, parseDate, toBusinessDate } from "@/core/dates.ts";
+import { cashFigures } from "@/core/reports.ts";
 import { PrintHost } from "@/components/print.tsx";
 import { DataSafetyBanner } from "@/components/DataSafety.tsx";
 import { useApp } from "@/client/app-context.tsx";
@@ -105,6 +106,65 @@ export function Shell() {
     })();
     return () => {
       stopped = true;
+    };
+  }, [can, store, run, sync.lastSyncAt]);
+
+  // Day-end: every business day closes on its own at 11:59 pm, by this device's
+  // clock. If the app is open then, it closes on the spot; if not, the next time
+  // someone opens it, each finished day that had any activity is closed and
+  // stamped 11:59 pm of its own day. A day someone already closed by counting the
+  // drawer is never touched. One timer per day; nothing runs in between.
+  const floatRef = useRef(settings.opening_float);
+  floatRef.current = settings.opening_float;
+  useEffect(() => {
+    if (!can("cash.close") || !sync.lastSyncAt) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const endOf = (date: string) => {
+      const d = parseDate(date);
+      d.setHours(23, 59, 0, 0);
+      return d;
+    };
+    const closeDay = async (date: string) => {
+      if (stopped) return;
+      if (await store.get("SELECT 1 AS x FROM day_closes WHERE business_date = ?", [date])) return;
+      const f = await cashFigures(store, date);
+      const active = f.salesCount > 0 || f.cashSales > 0 || f.cashOut > 0 || f.otherMethods.length > 0;
+      if (!active || stopped) return;
+      const opening = Number(floatRef.current) || 0;
+      await run("day.close", {
+        business_date: date,
+        opening_float: opening,
+        cash_sales: f.cashSales,
+        cash_out: f.cashOut,
+        expected: opening + f.cashSales - f.cashOut,
+        auto: true,
+        closed_at: endOf(date).toISOString(),
+      });
+    };
+    const catchUp = async () => {
+      const today = toBusinessDate();
+      // Finished days from the last 60, oldest first.
+      for (let d = addDays(today, -60); d < today && !stopped; d = addDays(d, 1)) await closeDay(d);
+      if (Date.now() >= endOf(today).getTime()) await closeDay(today);
+    };
+    const schedule = () => {
+      const today = toBusinessDate();
+      const at = endOf(today).getTime();
+      const wait = at > Date.now() ? at - Date.now() : endOf(addDays(today, 1)).getTime() - Date.now();
+      timer = setTimeout(async () => {
+        await catchUp();
+        if (!stopped) schedule();
+      }, Math.min(wait, 2 ** 31 - 1));
+    };
+    // A phone that slept through 11:59 pm catches up when it's looked at again.
+    const onVisible = () => document.visibilityState === "visible" && void catchUp();
+    void catchUp().then(() => !stopped && schedule());
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [can, store, run, sync.lastSyncAt]);
 

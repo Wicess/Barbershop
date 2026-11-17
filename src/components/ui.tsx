@@ -12,6 +12,7 @@ import { formatMoney, parseMoney, toInputValue } from "@/core/money.ts";
 import { haptic, useBackTarget, useLargeTitle, useMediaQuery } from "./native.tsx";
 import { goBack as goBackInApp, useCanGoBack } from "@/client/router.ts";
 import { DateInput, inputClass } from "./pickers.tsx";
+import { Emblem } from "./motif.tsx";
 
 export function cx(...parts: (string | false | null | undefined)[]) {
   return parts.filter(Boolean).join(" ");
@@ -87,6 +88,10 @@ export function PageHeader({
           <ChevronLeft className="size-6" />
         </IconButton>
       )}
+      {/* The shop's signature mark beside every page title (computers). */}
+      <span aria-hidden className="mr-1 mt-2.5 hidden shrink-0 lg:block">
+        <Emblem size={24} className="emblem-in" />
+      </span>
       <div className="min-w-0 flex-1 pt-1">
         <h1 ref={titleRef} className="text-[32px] font-extrabold leading-[1.05] tracking-[-0.035em] text-ink lg:text-[30px]">{title}</h1>
         {subtitle && <div className="mt-1 text-[15px] text-ink-3">{subtitle}</div>}
@@ -104,7 +109,7 @@ export function LogoMark({ className, white }: { className?: string; white?: boo
 
 export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cx("rounded-3xl bg-surface shadow-card ring-1 ring-line/70", className)} {...rest}>
+    <div className={cx("spot rounded-3xl bg-surface shadow-card ring-1 ring-line/70", className)} {...rest}>
       {children}
     </div>
   );

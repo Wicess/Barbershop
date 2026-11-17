@@ -13,6 +13,21 @@ import { addDays, addMonths, daysInMonth, monthOf } from "./dates.ts";
 import { share } from "./money.ts";
 import { FR } from "../i18n/fr/index.ts";
 
+/** Regular clients (name and phone), so the client book shows real repeat visits. */
+const CLIENTS_CM: [string, string][] = [
+  ["Serge Ndongo", "677 21 45 90"], ["Aïcha Bello", "699 08 33 12"], ["Paul Essomba", "655 47 10 28"],
+  ["Clarisse Nkeng", "678 90 12 55"], ["Samuel Etoa", "690 33 72 41"], ["Ibrahim Moussa", "656 12 98 30"],
+  ["Josiane Mballa", "677 64 05 19"], ["Hervé Tchinda", "691 50 27 84"], ["Linda Fokou", "654 81 36 07"],
+  ["Boris Nana", "670 25 49 63"],
+];
+const CLIENTS_KE: [string, string][] = [
+  ["Peter Otieno", "0712 345 678"], ["Mary Wambui", "0722 118 904"], ["Peter Kariuki", "0733 450 212"],
+  ["Grace Achieng", "0701 776 345"], ["Sam Mutua", "0745 902 118"], ["Faith Njeri", "0711 205 667"],
+  ["Brian Kiprop", "0726 334 090"], ["Janet Akinyi", "0798 561 230"], ["David Mwangi", "0720 447 812"],
+  ["Lucy Chebet", "0704 913 556"],
+];
+const regular = (c: [string, string] | null) => ({ customer_name: c ? c[0] : null, customer_phone: c ? c[1] : null });
+
 /** Staff names for the Cameroon edition. */
 const CM_NAMES: Record<string, string> = {
   "demo-st-kevin": "Junior Mbarga",
@@ -247,7 +262,7 @@ export function demoShop(
       receipt++;
       const created = at();
       push("sale.create", {
-        sale: { id: saleId, receipt_no: `D-${String(receipt).padStart(5, "0")}`, customer_name: r() < 0.3 ? pick(cm ? ["Ndongo", "Aïcha B.", "Paul Essomba", "Clarisse N.", "Samuel"] : ["Otieno", "Mary W.", "Peter K.", "Grace A.", "Sam"]) : null, customer_phone: null, note: null, business_date: day, created_at: created, tendered },
+        sale: { id: saleId, receipt_no: `D-${String(receipt).padStart(5, "0")}`, ...regular(r() < 0.3 ? pick(cm ? CLIENTS_CM : CLIENTS_KE) : null), note: null, business_date: day, created_at: created, tendered },
         lines, payments, tips,
       }, created);
 

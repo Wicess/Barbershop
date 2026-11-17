@@ -266,6 +266,63 @@
 .snap-x-row::-webkit-scrollbar { display: none; }
 .snap-x-row > * { scroll-snap-align: center; scroll-snap-stop: always; }
 
+/* ---------- Cameroonian signature, drawn the modern way ----------
+   A fine brass lattice from Ndop, the royal cloth of the Grassfields (nested
+   lozenges around an "eye"), drifts very slowly behind every screen and fades
+   out toward the content, so it frames the work without competing with it. */
+.ndop-field {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(120% 70% at 85% 0%, #000 0%, transparent 62%), radial-gradient(90% 60% at 0% 100%, #000 0%, transparent 58%);
+  mask-image: radial-gradient(120% 70% at 85% 0%, #000 0%, transparent 62%), radial-gradient(90% 60% at 0% 100%, #000 0%, transparent 58%);
+}
+.ndop-field::before {
+  content: "";
+  position: absolute;
+  inset: -112px;
+  background: url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22112%22 height=%22112%22 viewBox=%220 0 112 112%22 fill=%22none%22 stroke=%22%23C8A46A%22 stroke-width=%221%22%3E%3Cpath d=%22M56 6 106 56 56 106 6 56Z%22/%3E%3Cpath d=%22M56 24 88 56 56 88 24 56Z%22 stroke-dasharray=%223 4%22/%3E%3Cpath d=%22M56 44 68 56 56 68 44 56Z%22/%3E%3Ccircle cx=%2256%22 cy=%2256%22 r=%222.5%22 fill=%22%23C8A46A%22 stroke=%22none%22/%3E%3Cpath d=%22M0 0 6 6M112 0 106 6M0 112 6 106M112 112 106 106%22 /%3E%3Ccircle cx=%220%22 cy=%220%22 r=%222%22 fill=%22%23C8A46A%22 stroke=%22none%22/%3E%3Ccircle cx=%22112%22 cy=%220%22 r=%222%22 fill=%22%23C8A46A%22 stroke=%22none%22/%3E%3Ccircle cx=%220%22 cy=%22112%22 r=%222%22 fill=%22%23C8A46A%22 stroke=%22none%22/%3E%3Ccircle cx=%22112%22 cy=%22112%22 r=%222%22 fill=%22%23C8A46A%22 stroke=%22none%22/%3E%3C/svg%3E") repeat 0 0 / 112px 112px;
+  opacity: 0.13;
+  animation: ndop-drift 90s linear infinite;
+  will-change: transform;
+}
+:root:not([data-theme="dark"]) .ndop-field::before { opacity: 0.2; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ndop-field::before { opacity: 0.13; } }
+@keyframes ndop-drift {
+  to { transform: translate3d(112px, 112px, 0); }
+}
+
+/* The emblem: draws itself in when a page opens, then turns very slowly where it's a watermark. */
+@keyframes emblem-in {
+  from { opacity: 0; transform: rotate(-45deg) scale(0.6); }
+  to { opacity: 1; transform: none; }
+}
+.emblem-in { animation: emblem-in 700ms var(--ease-out) both; }
+@keyframes slow-turn { to { transform: rotate(360deg); } }
+.emblem-turn { animation: slow-turn 120s linear infinite; }
+
+/* Cards: a soft brass light follows the pointer (set by one listener in the shell). */
+/* In the components layer, so a card's own position classes (utilities) always win. */
+@layer components { .spot, .lift { position: relative; } }
+.spot::after, .lift::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), color-mix(in oklab, var(--brass) 14%, transparent), transparent 55%);
+  transition: opacity 260ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .spot:hover::after, .lift:hover::after { opacity: 1; }
+  /* Anything you can tap lifts and picks up a fine brass edge. */
+  .lift { transition: transform 260ms var(--ease-out), box-shadow 260ms var(--ease-out); }
+  .lift:hover { box-shadow: var(--shadow-md), inset 0 0 0 1px color-mix(in oklab, var(--brass) 55%, transparent) !important; }
+}
+
 /* Dropdown and calendar panels open from their button. */
 @keyframes pop-down {
   from { opacity: 0; transform: translateY(-6px) scale(0.97); }

@@ -11,6 +11,7 @@ import { AUTO_CLOSE_NOTE } from "@/core/commands.ts";
 import { addDays, addMonths, currentMonth, dayCount, daysInMonth, formatDate, formatMonth, presetPeriod, toBusinessDate } from "@/core/dates.ts";
 import { cashFigures, lowStock, periodSummary, revenueUntil, staffPerformance, topItems } from "@/core/reports.ts";
 import { Bars } from "@/components/charts.tsx";
+import { Emblem } from "@/components/motif.tsx";
 import { InstallCard } from "@/components/native.tsx";
 import { BACKUP_REMINDER_DAYS, useLastBackup } from "@/components/DataSafety.tsx";
 import { itemImage, Photo, sectionImage } from "@/components/media.tsx";
@@ -424,7 +425,7 @@ export function HomeView() {
 /** A dashboard panel: a title row, then content that scrolls inside if it's long. */
 function Panel({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="flex min-h-0 flex-col rounded-3xl bg-surface shadow-card ring-1 ring-line/70">
+    <section className="spot flex min-h-0 flex-col rounded-3xl bg-surface shadow-card ring-1 ring-line/70">
       <div className="flex shrink-0 items-center justify-between gap-2 px-5 pb-1 pt-4 dash-short:pt-3">
         <h2 className="text-[15px] font-bold tracking-[-0.01em]">{title}</h2>
         {action}
@@ -499,6 +500,10 @@ function HeroCarousel({ greeting: hello, name, date, slides, children }: { greet
       ))}
       <div aria-hidden className="absolute -right-16 -top-20 -z-10 size-72 animate-glow rounded-full bg-[radial-gradient(circle,rgb(200_164_106/0.22),transparent_65%)] blur-2xl" />
       <div aria-hidden className="rings absolute inset-0 -z-10 animate-float-slow" />
+      {/* The Ndop emblem as a watermark, turning very slowly. */}
+      <div aria-hidden className="pointer-events-none absolute -bottom-24 -right-12 -z-10 opacity-[0.32]">
+        <Emblem size={300} className="emblem-turn" />
+      </div>
 
       <div className="flex items-start justify-between gap-3 px-5 sm:px-7 xl:px-9">
         <div>

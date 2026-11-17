@@ -9,6 +9,8 @@ export interface Settings {
   /** "58" | "80" (mm thermal roll) or "a4" */
   paper_width: string;
   cashier_can_edit_price: boolean;
+  /** What managers and cashiers may do, as chosen by the owner (JSON; empty = recommended). */
+  role_access: string;
   /** Default staff share in basis points for new staff. */
   default_commission_bp: number;
   /** Cash left in the drawer at the start of each day. */
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   receipt_footer: "Thank you. See you again!",
   paper_width: "80",
   cashier_can_edit_price: false,
+  role_access: "",
   default_commission_bp: 4000,
   opening_float: 0,
 };

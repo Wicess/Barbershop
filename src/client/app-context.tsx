@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { CommandError, type Actor, type CommandType, type Payloads } from "@/core/commands.ts";
 import { tMessage } from "@/core/i18n.ts";
 import type { Db } from "@/core/db.ts";
-import { can as canRole, type Permission } from "@/core/permissions.ts";
+import { can as canRole, roleOptions, type Permission } from "@/core/permissions.ts";
 import { DEFAULT_SETTINGS, loadSettings, type Settings } from "@/core/settings.ts";
 import type { Engine, SyncState } from "./engine.ts";
 import { haptic } from "@/components/native.tsx";
@@ -84,8 +84,8 @@ export function AppProvider(props: {
   }, []);
 
   const can = useCallback(
-    (perm: Permission) => canRole(user.role, perm, { cashierCanEditPrice: settings.cashier_can_edit_price }),
-    [user.role, settings.cashier_can_edit_price],
+    (perm: Permission) => canRole(user.role, perm, roleOptions(settings)),
+    [user.role, settings],
   );
 
   const run = useCallback(

@@ -10,6 +10,7 @@
 
 import { demoShop } from "../src/core/demo.ts";
 import { toBusinessDate } from "../src/core/dates.ts";
+import { hashPin, newSalt } from "../src/core/pin.ts";
 
 const base = (process.argv.find((a) => a.startsWith("http")) ?? "http://localhost:3200").replace(/\/$/, "");
 const cameroon = process.argv.includes("--cameroon");
@@ -17,6 +18,10 @@ const shop = cameroon
   ? { shopName: "Salon Élégance Douala", ownerName: "Christian Kamga", currency: "XAF", lang: "fr" }
   : { shopName: "Kings Cut Studio", ownerName: "Brian Otieno", currency: "KES", lang: "en" };
 const PIN = "1234";
+// Two more people who sign in, to try the access controls (Settings → Who can do what).
+const PEOPLE = cameroon
+  ? [{ id: "demo-user-manager", name: "Grace Ebah", role: "manager", pin: "2222" }, { id: "demo-user-cashier", name: "Paul Nkoulou", role: "cashier", pin: "3333" }]
+  : [{ id: "demo-user-manager", name: "Mary Wanjiku", role: "manager", pin: "2222" }, { id: "demo-user-cashier", name: "John Kamau", role: "cashier", pin: "3333" }];
 
 async function main() {
   const status = await (await fetch(`${base}/api/status`)).json();
@@ -34,7 +39,13 @@ async function main() {
   const cookie = setup.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
   const { userId, deviceId } = (await setup.json()) as { userId: string; deviceId: string };
 
-  const { commands } = demoShop(toBusinessDate(), 2026, { edition: cameroon ? "cameroon" : "default" });
+  const { commands: shopCommands } = demoShop(toBusinessDate(), 2026, { edition: cameroon ? "cameroon" : "default" });
+  const people = [];
+  for (const u of PEOPLE) {
+    const salt = newSalt();
+    people.push({ type: "user.upsert", payload: { id: u.id, name: u.name, role: u.role, active: 1, pin_salt: salt, pin_hash: await hashPin(u.pin, salt) }, at: new Date().toISOString() });
+  }
+  const commands = [...shopCommands, ...people];
   let ok = 0;
   for (let i = 0; i < commands.length; i += 150) {
     const batch = commands.slice(i, i + 150).map((c, j) => ({
@@ -53,7 +64,8 @@ async function main() {
       else throw new Error(`Command ${r.id} was refused: ${r.error}`);
     }
   }
-  console.log(`Demo shop “${shop.shopName}” ready at ${base}: ${ok} records loaded. Sign in as ${shop.ownerName}, PIN ${PIN}.`);
+  console.log(`Demo shop “${shop.shopName}” ready at ${base}: ${ok} records loaded.`);
+  console.log(`Sign in as ${shop.ownerName} (owner), PIN ${PIN}; ${PEOPLE.map((u) => `${u.name} (${u.role}), PIN ${u.pin}`).join("; ")}.`);
 }
 
 main().catch((e) => {

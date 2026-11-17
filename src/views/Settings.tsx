@@ -14,6 +14,7 @@ import {
 import { LanguageSwitch } from "@/components/i18n.tsx";
 import { ThemeSwitch } from "@/components/theme.tsx";
 import { Avatar } from "./Boot.tsx";
+import { AccessEditor, RolePicker } from "./Access.tsx";
 
 export function SettingsView() {
   const { settings, run, engine } = useApp();
@@ -89,12 +90,6 @@ export function SettingsView() {
               <Field label={t("Default staff share for new staff (%)")} htmlFor="sshare"><Input id="sshare" inputMode="decimal" className="num" value={share} onChange={(e) => setShare(e.target.value)} /></Field>
               <Field label={t("Usual opening float")} htmlFor="sfloat" hint={t("Cash left in the drawer each morning.")}><MoneyInput id="sfloat" value={form.opening_float || null} onChange={(v) => set("opening_float", v ?? 0)} /></Field>
             </div>
-            <Toggle
-              checked={form.cashier_can_edit_price}
-              onChange={(v) => set("cashier_can_edit_price", v)}
-              label={t("Cashier can change prices at the till")}
-              description={t("Every changed price is recorded with the original price in the activity log.")}
-            />
             <Field label={t("Currency")} htmlFor="scur" hint={t("Changing this doesn't convert amounts already recorded.")}>
               <Input id="scur" value={form.currency} maxLength={3} onChange={(e) => set("currency", e.target.value.toUpperCase())} />
             </Field>
@@ -120,9 +115,9 @@ export function SettingsView() {
               ))}
             </Card>
           )}
-          <p className="mt-2 text-xs text-ink-3">
-            {t("Owner: everything, including profit and settings. Shop manager: sales, voids, expenses, staff, stock and daily reports. Cashier: records sales and closes the day.")}
-          </p>
+
+          <SectionTitle>{t("Who can do what")}</SectionTitle>
+          <AccessEditor />
         </div>
 
         <div className="lg:col-start-2 lg:row-start-3">
@@ -195,12 +190,8 @@ function UserSheet({ user, onClose }: { user: UserRow | null; onClose: () => voi
     <Sheet open onClose={onClose} title={user ? user.name : t("Add a user")} footer={<Button block size="lg" loading={busy} onClick={save}>{t("Save")}</Button>}>
       <div className="space-y-4">
         <Field label={t("Name")} htmlFor="un"><Input id="un" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" /></Field>
-        <Field label={t("Role")} htmlFor="ur">
-          <Select id="ur" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-            <option value="cashier">{t("Cashier — records sales, closes the day")}</option>
-            <option value="manager">{t("Shop manager — runs the shop day to day")}</option>
-            <option value="owner">{t("Owner — everything, including profit")}</option>
-          </Select>
+        <Field label={t("Role")}>
+          <RolePicker value={role} onChange={setRole} />
         </Field>
         <Field label={user ? t("New PIN (leave blank to keep)") : t("PIN")} htmlFor="up" hint={t("4–6 digits. They use it to sign in on any shop device.")}>
           <Input id="up" type="password" inputMode="numeric" autoComplete="new-password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} />

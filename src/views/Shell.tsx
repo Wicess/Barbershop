@@ -16,6 +16,7 @@ import { go, useRoute } from "@/client/router.ts";
 import type { Permission } from "@/core/permissions.ts";
 import { ROLE_LABEL } from "@/core/permissions.ts";
 import { LogoMark, cx } from "@/components/ui.tsx";
+import { MotifDivider } from "@/components/motif.tsx";
 import { t } from "@/core/i18n.ts";
 import { Avatar } from "./Boot.tsx";
 import { HomeView } from "./Home.tsx";
@@ -168,6 +169,30 @@ export function Shell() {
     };
   }, [can, store, run, sync.lastSyncAt]);
 
+  // A soft brass light follows the pointer across cards (mouse only; one listener, one update per frame).
+  useEffect(() => {
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    let raf = 0;
+    let last: PointerEvent | null = null;
+    const onMove = (e: PointerEvent) => {
+      last = e;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const el = (last?.target as Element | null)?.closest?.(".spot, .lift") as HTMLElement | null;
+        if (!el || !last) return;
+        const r = el.getBoundingClientRect();
+        el.style.setProperty("--mx", `${last.clientX - r.left}px`);
+        el.style.setProperty("--my", `${last.clientY - r.top}px`);
+      });
+    };
+    document.addEventListener("pointermove", onMove, { passive: true });
+    return () => {
+      document.removeEventListener("pointermove", onMove);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
   const route = useRoute();
   const allowed = NAV.filter((n) => !n.perm || can(n.perm));
   const homePath = can("reports.daily") ? "/" : "/sell";
@@ -213,9 +238,11 @@ export function Shell() {
 
   return (
     <div className="min-h-dvh lg:flex">
+      {/* The Ndop lattice drifting behind every screen. */}
+      <div aria-hidden className="ndop-field no-print" />
       {/* Desktop sidebar */}
       <aside className="no-print sticky top-0 hidden h-dvh w-[272px] shrink-0 flex-col border-r border-line bg-surface px-3 py-5 lg:flex [@media(max-height:680px)]:py-3">
-        <div className="mb-6 flex items-center gap-3 px-3 [@media(max-height:760px)]:mb-3">
+        <div className="mb-4 flex items-center gap-3 px-3 [@media(max-height:760px)]:mb-3">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-[#1b1410] ring-1 ring-white/12 shadow-[0_8px_20px_-12px_rgb(0_0_0/0.6)] [@media(max-height:680px)]:size-9">
             <LogoMark className="size-7 [@media(max-height:680px)]:size-6" />
           </span>
@@ -224,6 +251,8 @@ export function Shell() {
             <p className="line-clamp-2 font-display text-[14px] font-bold uppercase leading-[1.2] tracking-[0.02em]">{settings.shop_name}</p>
           </div>
         </div>
+        {/* The brass emblem rule under the shop name (hidden on short windows so the menu still fits). */}
+        <MotifDivider className="mx-3 mb-3 shrink-0 [@media(max-height:760px)]:hidden" />
         {/* Every item stays visible: rows shrink with the window's height (between 30 and 44px) instead of scrolling out of sight. */}
         <nav
           className="nav-scroll -mr-2 flex-1 overflow-y-auto pr-2"
@@ -236,7 +265,7 @@ export function Shell() {
               href={`#${n.path}`}
               aria-current={path === n.path ? "page" : undefined}
               className={cx(
-                "flex h-[clamp(24px,calc((100dvh-15.25rem)/var(--nav-n)),44px)] [@media(max-height:680px)]:h-[clamp(22px,calc((100dvh-13.5rem)/var(--nav-n)),44px)] items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.98] [@media(max-height:760px)]:text-[13px]",
+                "flex h-[clamp(24px,calc((100dvh-17.6rem)/var(--nav-n)),44px)] [@media(max-height:680px)]:h-[clamp(22px,calc((100dvh-13.5rem)/var(--nav-n)),44px)] items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.98] [@media(max-height:760px)]:text-[13px]",
                 path === n.path ? "bg-surface-2 text-ink ring-1 ring-line" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
               )}
             >

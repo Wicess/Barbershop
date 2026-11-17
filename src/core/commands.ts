@@ -8,7 +8,7 @@
 // optimistic copy and the server's copy are the same row.
 
 import { upsert, type Db, type Row } from "./db.ts";
-import { can, type Permission, type Role } from "./permissions.ts";
+import { can, parseRoleAccess, roleOptions, type Permission, type Role } from "./permissions.ts";
 import { share } from "./money.ts";
 import { loadSettings, serializeSetting, type Settings } from "./settings.ts";
 import type { TableName } from "./schema.ts";
@@ -37,6 +37,8 @@ export interface Ctx {
   /** Stamp for every row written by this command (0 on devices, the server counter on the server). */
   rev: number;
   cmd: Command;
+  /** The shop's settings, loaded before the command runs (access rules live here). */
+  settings?: Settings;
 }
 
 export class CommandError extends Error {}
@@ -153,7 +155,7 @@ export type CommandType = keyof Payloads;
 // ---------- helpers ----------
 
 function need(ctx: Ctx, perm: Permission, settings?: Settings) {
-  if (!can(ctx.actor.role, perm, { cashierCanEditPrice: settings?.cashier_can_edit_price })) {
+  if (!can(ctx.actor.role, perm, roleOptions(settings ?? ctx.settings))) {
     throw new CommandError("You don't have permission to do that.");
   }
 }
@@ -459,7 +461,7 @@ const handlers: { [K in CommandType]: Handler<K> } = {
     check(typeof s.id === "string", "Invalid staff member.");
     check(text(s.name), "Enter a name.");
     const existing = await getRow(ctx, "staff", s.id);
-    const canPay = can(ctx.actor.role, "staff.setPay");
+    const canPay = can(ctx.actor.role, "staff.setPay", roleOptions(ctx.settings));
     let commission = Number(s.commission_bp);
     let salary = Number(s.base_salary ?? 0);
     if (!canPay) {
@@ -765,6 +767,10 @@ const handlers: { [K in CommandType]: Handler<K> } = {
     need(ctx, "settings.manage");
     const keys = Object.keys(p.values ?? {});
     check(keys.length > 0, "Nothing to save.");
+    if ("role_access" in p.values) {
+      // Store only a clean, valid list (unknown or owner-only rights are dropped).
+      p.values.role_access = p.values.role_access ? JSON.stringify(parseRoleAccess(String(p.values.role_access))) : "";
+    }
     for (const key of keys) {
       await put(ctx, "settings", { id: key, value: serializeSetting(p.values[key]), updated_at: ctx.cmd.at });
     }
@@ -784,5 +790,6 @@ export async function applyCommand(ctx: Ctx): Promise<void> {
   const handler = handlers[ctx.cmd.type] as Handler<CommandType> | undefined;
   if (!handler) throw new CommandError(`Unknown action: ${ctx.cmd.type}`);
   const settings = await loadSettings(ctx.db);
+  ctx.settings = settings;
   await handler(ctx, ctx.cmd.payload as Payloads[CommandType], settings);
 }

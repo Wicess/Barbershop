@@ -234,6 +234,24 @@ test("a day nobody counted closes on its own at 11:59 pm, once, and a later coun
   assert.equal(row?.note, null);
 });
 
+test("the owner chooses what cashiers and managers can do, and the server enforces it", async () => {
+  const store = await shop();
+  const expense = (id: string) => ({ id, category: "Supplies & consumables", amount: KES(50), business_date: "2026-10-15", paid_from: "till" });
+  // Recommended: a cashier can't record expenses.
+  await assert.rejects(exec(store, cashier, "expense.create", expense("e1")), /permission/);
+  // Only the owner can change access.
+  await assert.rejects(exec(store, manager, "settings.update", { values: { role_access: JSON.stringify({ cashier: ["sale.create", "expense.create"] }) } }), /permission/);
+  // The owner allows it ("see expenses" comes with it on screen; the server only needs the list).
+  await exec(store, owner, "settings.update", { values: { role_access: JSON.stringify({ cashier: ["sale.create", "cash.close", "expense.view", "expense.create", "users.manage"] }) } });
+  await exec(store, cashier, "expense.create", expense("e2"));
+  // Owner-only rights can't be handed out, even if someone tries.
+  await assert.rejects(exec(store, cashier, "user.upsert", { id: "u-x", name: "X", role: "owner", pin_hash: "h", pin_salt: "s" }), /permission/);
+  // Taking it away again works at once; managers keep their recommended rights.
+  await exec(store, owner, "settings.update", { values: { role_access: JSON.stringify({ cashier: ["sale.create", "cash.close"] }) } });
+  await assert.rejects(exec(store, cashier, "expense.create", expense("e3")), /permission/);
+  await exec(store, manager, "expense.create", expense("e4"));
+});
+
 test("fixed monthly costs post once per month even if triggered twice", async () => {
   const store = await shop();
   await exec(store, owner, "recurring.upsert", { id: "rent", category: "Rent", amount: KES(20000), description: "Shop rent", active: 1 });
@@ -642,7 +660,7 @@ test("French: every sentence the app shows in French has a translation", async (
   const { join } = await import("node:path");
   const { FR } = await import("../src/i18n/fr/index.ts");
   const { PAYMENT_LABEL, ADJUSTMENT_LABEL, EXPENSE_CATEGORIES } = await import("../src/core/commands.ts");
-  const { ROLE_LABEL } = await import("../src/core/permissions.ts");
+  const { ROLE_LABEL, ACCESS_GROUPS } = await import("../src/core/permissions.ts");
   const { SUGGESTIONS } = await import("../src/core/seed.ts");
 
   const files: string[] = [];
@@ -671,6 +689,13 @@ test("French: every sentence the app shows in French has a translation", async (
   for (const m of shell.matchAll(/(?:label|description): "([^"]+)"/g)) keys.add(m[1]);
   for (const v of [...Object.values(PAYMENT_LABEL), ...Object.values(ADJUSTMENT_LABEL), ...Object.values(ROLE_LABEL), ...EXPENSE_CATEGORIES]) keys.add(v);
   for (const list of Object.values(SUGGESTIONS)) for (const v of list) keys.add(v);
+  for (const g of ACCESS_GROUPS) {
+    keys.add(g.title);
+    for (const i of g.items) {
+      keys.add(i.label);
+      if (i.hint) keys.add(i.hint);
+    }
+  }
 
   const missing = [...keys].filter((k) => FR[k] === undefined).sort();
   assert.deepEqual(missing, [], `No French for:\n${missing.map((k) => `  ${JSON.stringify(k)}`).join("\n")}`);

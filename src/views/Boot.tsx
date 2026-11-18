@@ -20,7 +20,7 @@ type Phase =
   | { name: "loading" }
   | { name: "error"; message: string }
   | { name: "setup" }
-  | { name: "register"; users: { id: string; name: string; role: Role }[]; shopName: string | null }
+  | { name: "register"; roles: Role[]; shopName: string | null }
   | { name: "login" }
   | { name: "app"; user: Actor }
   // Another tab has the shop open. `moved`: this tab had it and handed over.
@@ -71,7 +71,7 @@ export default function Boot() {
         await e.sync();
         return setPhase({ name: "login" });
       }
-      setPhase({ name: "register", users: data.users, shopName: data.shopName });
+      setPhase({ name: "register", roles: data.roles ?? [], shopName: data.shopName });
     } catch {
       setPhase({
         name: "error",
@@ -207,7 +207,7 @@ export default function Boot() {
     case "setup":
       return <Setup onDone={afterConnect} store={store} />;
     case "register":
-      return <Register users={phase.users} shopName={phase.shopName} onDone={afterConnect} />;
+      return <Register roles={phase.roles} shopName={phase.shopName} onDone={afterConnect} />;
     case "login":
       return store ? <Login store={store} onSignIn={signIn} /> : null;
     case "app":
@@ -678,10 +678,11 @@ function NewShop({ onDone, onRestore }: { onDone: (deviceId: string, code: strin
   );
 }
 
+/** Connect this device: pick your role, type your PIN (the PIN says who you are; no names are shown). */
 function Register({
-  users, shopName, onDone,
-}: { users: { id: string; name: string; role: Role }[]; shopName: string | null; onDone: (deviceId: string, code: string, userId: string) => Promise<void> }) {
-  const [userId, setUserId] = useState(users[0]?.id ?? "");
+  roles, shopName, onDone,
+}: { roles: Role[]; shopName: string | null; onDone: (deviceId: string, code: string, userId: string) => Promise<void> }) {
+  const [role, setRole] = useState<Role>(roles[0] ?? "owner");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -692,11 +693,11 @@ function Register({
       const res = await fetch("/api/devices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, pin, deviceName: deviceName() }),
+        body: JSON.stringify({ role, pin, deviceName: deviceName() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ? tMessage(data.error) : t("Could not connect this device."));
-      await onDone(data.deviceId, data.deviceCode, userId);
+      await onDone(data.deviceId, data.deviceCode, data.userId);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("Could not connect this device."));
       setBusy(false);
@@ -713,11 +714,11 @@ function Register({
             {t("Connect this phone or computer to the shop. After this it works offline too, and everyone signs in with their own PIN.")}
           </p>
         </Card>
-        <Field label={t("Your name")} htmlFor="who">
-          <Select id="who" value={userId} onChange={(e) => setUserId(e.target.value)}>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} — {t(ROLE_LABEL[u.role])}
+        <Field label={t("Your role")} htmlFor="who">
+          <Select id="who" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+            {roles.map((r) => (
+              <option key={r} value={r}>
+                {t(ROLE_LABEL[r])}
               </option>
             ))}
           </Select>

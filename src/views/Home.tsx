@@ -62,6 +62,10 @@ export function HomeView() {
               [`month-${addMonths(currentMonth(), -1)}`],
             )
           : undefined,
+      // Expenses waiting for a manager's approval (shown to whoever can approve).
+      pendingExpenses: Number(
+        (await db.get<{ n: number }>("SELECT COUNT(*) AS n FROM expenses WHERE status = 'pending' AND voided_at IS NULL"))?.n ?? 0,
+      ),
     };
   }, [today]);
 
@@ -198,8 +202,18 @@ export function HomeView() {
         </button>
       )}
 
-      {(data.unclosed || data.lowStock.length > 0 || needBackup) && (
+      {(data.unclosed || data.lowStock.length > 0 || needBackup || (can("expense.approve") && data.pendingExpenses > 0)) && (
         <div className="stagger mt-3 space-y-2 dash:contents">
+          {can("expense.approve") && data.pendingExpenses > 0 && (
+            <Nudge
+              icon={Banknote}
+              tone="warning"
+              title={plural(data.pendingExpenses, "{n} expense waiting for your approval", "{n} expenses waiting for your approval")}
+              onClick={() => go("/expenses")}
+            >
+              {t("Nothing is deducted until you approve it.")}
+            </Nudge>
+          )}
           {needBackup && (
             <Nudge
               icon={DatabaseBackup}

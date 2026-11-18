@@ -13,7 +13,7 @@ import { Avatar } from "./Boot.tsx";
 const GROUPS: { title: string; paths: string[] }[] = [
   { title: "Selling", paths: ["/sell", "/sales", "/close", "/clients"] },
   { title: "Money", paths: ["/reports", "/months", "/money", "/expenses", "/backup"] },
-  { title: "People", paths: ["/earnings", "/payroll", "/staff"] },
+  { title: "People", paths: ["/earnings", "/payroll", "/staff", "/people"] },
 ];
 
 export function MoreView({ items }: { items: NavItem[] }) {

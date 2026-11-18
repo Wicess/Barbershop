@@ -6,7 +6,7 @@
 
 import type { Database, SqlJsStatic } from "sql.js";
 import type { Db, Row, Store } from "@/core/db.ts";
-import { TABLE_NAMES, columnsOf, schemaStatements, type TableName } from "@/core/schema.ts";
+import { TABLE_NAMES, columnsOf, missingColumnStatements, schemaStatements, type TableName } from "@/core/schema.ts";
 
 declare global {
   interface Window {
@@ -446,6 +446,11 @@ export async function openLocalStore(): Promise<LocalStore> {
 
 export function migrate(db: Database) {
   for (const sql of schemaStatements()) db.run(sql);
+  // Columns added in later versions.
+  for (const t of TABLE_NAMES) {
+    const have = new Set(rowsOf(db, `PRAGMA table_info(${t})`).map((c) => String(c.name)));
+    for (const sql of missingColumnStatements(t, have)) db.run(sql);
+  }
   db.run("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)");
   db.run(
     "CREATE TABLE IF NOT EXISTS outbox (seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, body TEXT, status TEXT DEFAULT 'pending', error TEXT, created_at TEXT)",

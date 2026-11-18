@@ -6,9 +6,10 @@ import { can } from "../src/core/permissions.ts";
 import { upsert, type Db, type Store } from "../src/core/db.ts";
 import { schemaStatements } from "../src/core/schema.ts";
 import { demoShop } from "../src/core/demo.ts";
+import { FR } from "../src/i18n/fr/index.ts";
 import { DEFAULT_DEPARTMENTS } from "../src/core/seed.ts";
 import { monthRange } from "../src/core/dates.ts";
-import { cashbook, cashFigures, clientList, clientLookup, lowStock, payroll, periodSummary, saleSplit, staffEarnings, staffLines } from "../src/core/reports.ts";
+import { cashbook, cashFigures, clientList, clientLookup, lowStock, payroll, periodSummary, proratedSalaries, saleSplit, staffEarnings, staffLines } from "../src/core/reports.ts";
 
 const sqlReady = initSqlJs();
 
@@ -237,19 +238,70 @@ test("a day nobody counted closes on its own at 11:59 pm, once, and a later coun
 test("the owner chooses what cashiers and managers can do, and the server enforces it", async () => {
   const store = await shop();
   const expense = (id: string) => ({ id, category: "Supplies & consumables", amount: KES(50), business_date: "2026-10-15", paid_from: "till" });
-  // Recommended: a cashier can't record expenses.
-  await assert.rejects(exec(store, cashier, "expense.create", expense("e1")), /permission/);
-  // Only the owner can change access.
-  await assert.rejects(exec(store, manager, "settings.update", { values: { role_access: JSON.stringify({ cashier: ["sale.create", "expense.create"] }) } }), /permission/);
-  // The owner allows it ("see expenses" comes with it on screen; the server only needs the list).
-  await exec(store, owner, "settings.update", { values: { role_access: JSON.stringify({ cashier: ["sale.create", "cash.close", "expense.view", "expense.create", "users.manage"] }) } });
-  await exec(store, cashier, "expense.create", expense("e2"));
-  // Owner-only rights can't be handed out, even if someone tries.
-  await assert.rejects(exec(store, cashier, "user.upsert", { id: "u-x", name: "X", role: "owner", pin_hash: "h", pin_salt: "s" }), /permission/);
-  // Taking it away again works at once; managers keep their recommended rights.
+  await exec(store, cashier, "expense.create", expense("e1")); // cashiers record; it waits for approval
+  // Recommended: a cashier can't approve.
+  await assert.rejects(exec(store, cashier, "expense.review", { id: "e1", approve: true }), /permission/);
+  // Only the owner changes access.
+  await assert.rejects(exec(store, manager, "settings.update", { values: { role_access: JSON.stringify({ cashier: ["expense.approve"] }) } }), /permission/);
+  await exec(store, owner, "settings.update", { values: { role_access: JSON.stringify({ cashier: ["sale.create", "expense.view", "expense.create", "expense.approve", "users.manage", "settings.manage"] }) } });
+  await exec(store, cashier, "expense.review", { id: "e1", approve: true });
+  // Owner-only rights can't be handed out, and nobody but an owner touches owners.
+  await assert.rejects(exec(store, cashier, "settings.update", { values: { currency: "USD" } }), /permission/);
+  await assert.rejects(exec(store, cashier, "user.upsert", { id: "u-x", name: "X", role: "owner", pin_hash: "h", pin_salt: "s" }), /owner/);
+  await exec(store, owner, "user.upsert", { id: "u-owner", name: "Owner", role: "owner", pin_hash: "h", pin_salt: "s" });
+  await assert.rejects(exec(store, cashier, "user.upsert", { id: "u-owner", name: "Owner", role: "cashier", active: 0 }), /owner/);
+  // Taking it away works at once; managers keep their recommended rights.
   await exec(store, owner, "settings.update", { values: { role_access: JSON.stringify({ cashier: ["sale.create", "cash.close"] }) } });
   await assert.rejects(exec(store, cashier, "expense.create", expense("e3")), /permission/);
   await exec(store, manager, "expense.create", expense("e4"));
+});
+
+const sumExpenses = (p: { expensesByCategory: { amount: number }[] }) => p.expensesByCategory.reduce((n, e) => n + Number(e.amount), 0);
+
+test("an expense recorded by a cashier waits for a manager before it touches the money", async () => {
+  const store = await shop();
+  await exec(store, cashier, "sale.create", sale("1", [cut("l1", "st-ali")], [{ id: "p1", method: "cash", amount: KES(500), reference: null }]));
+  const expense = (id: string, amount: number) => ({ id, category: "Supplies & consumables", amount, business_date: "2026-10-15", paid_from: "till" });
+  await exec(store, cashier, "expense.create", expense("e1", KES(80)));
+  await exec(store, cashier, "expense.create", expense("e2", KES(30)));
+  let f = await cashFigures(store, "2026-10-15");
+  assert.equal(f.cashOut, 0); // nothing has left yet
+  assert.equal(sumExpenses(await periodSummary(store, "2026-10-01", "2026-10-31")), 0);
+  await exec(store, manager, "expense.review", { id: "e1", approve: true });
+  await assert.rejects(exec(store, manager, "expense.review", { id: "e2", approve: false, note: "" }), /reason/);
+  await exec(store, manager, "expense.review", { id: "e2", approve: false, note: "Not ours" });
+  await assert.rejects(exec(store, manager, "expense.review", { id: "e2", approve: true }), /already reviewed/);
+  f = await cashFigures(store, "2026-10-15");
+  assert.equal(f.cashOut, KES(80)); // only the approved one
+  assert.equal(sumExpenses(await periodSummary(store, "2026-10-01", "2026-10-31")), KES(80));
+  // A manager's own expense counts straight away.
+  await exec(store, manager, "expense.create", expense("e3", KES(20)));
+  assert.equal((await cashFigures(store, "2026-10-15")).cashOut, KES(100));
+});
+
+test("a pay change only affects work from the day it takes effect; leaving keeps past pay", async () => {
+  const store = await shop();
+  const staffRow = (await store.get<Record<string, unknown>>("SELECT * FROM staff WHERE id = 'st-ali'"))!;
+  // Ali earns a salary of 3,100 a month (31 days in October = 100 a day).
+  await exec(store, owner, "staff.upsert", { staff: { ...staffRow, joined_on: "2026-10-01", base_salary: KES(3100) }, effective_from: "2026-10-01", today: "2026-10-01" }, "2026-10-01T08:00:00.000Z");
+  await exec(store, cashier, "sale.create", sale("1", [cut("l1", "st-ali")], [{ id: "p1", method: "cash", amount: KES(500), reference: null }]));
+  const before = (await store.get<{ commission: number }>("SELECT commission FROM sale_lines WHERE id = 'l1'"))!.commission;
+  // From the 16th his share and salary go up. The sale on the 15th keeps the old share.
+  const now = (await store.get<Record<string, unknown>>("SELECT * FROM staff WHERE id = 'st-ali'"))!;
+  await exec(store, owner, "staff.upsert", { staff: { ...now, commission_bp: Number(now.commission_bp) + 1000, base_salary: KES(6200) }, effective_from: "2026-10-16", today: "2026-10-16" }, "2026-10-16T08:00:00.000Z");
+  assert.equal((await store.get<{ commission: number }>("SELECT commission FROM sale_lines WHERE id = 'l1'"))!.commission, before);
+  // Salary: 15 days at 100 + 16 days at 200 = 4,700.
+  assert.equal(await proratedSalaries(store, "2026-10-01", "2026-10-31"), KES(4700));
+  // He leaves after the 20th: 15 × 100 + 5 × 200 = 2,500, and his old sale is untouched.
+  const later = (await store.get<Record<string, unknown>>("SELECT * FROM staff WHERE id = 'st-ali'"))!;
+  await exec(store, owner, "staff.upsert", { staff: { ...later, active: 0, left_on: "2026-10-20" }, today: "2026-10-21" }, "2026-10-21T08:00:00.000Z");
+  assert.equal(await proratedSalaries(store, "2026-10-01", "2026-10-31"), KES(2500));
+  assert.equal((await store.get<{ commission: number }>("SELECT commission FROM sale_lines WHERE id = 'l1'"))!.commission, before);
+  // Backdating on purpose: the share change effective the 1st recalculates the sale on the 15th.
+  const gone = (await store.get<Record<string, unknown>>("SELECT * FROM staff WHERE id = 'st-ali'"))!;
+  await exec(store, owner, "staff.upsert", { staff: { ...gone, commission_bp: 4500 }, effective_from: "2026-10-01", today: "2026-10-21" }, "2026-10-21T09:00:00.000Z");
+  assert.equal((await store.get<{ commission: number }>("SELECT commission FROM sale_lines WHERE id = 'l1'"))!.commission, KES(225));
+  assert.ok((await store.get<{ n: number }>("SELECT COUNT(*) AS n FROM pay_history WHERE staff_id = 'st-ali'"))!.n >= 3);
 });
 
 test("fixed monthly costs post once per month even if triggered twice", async () => {
@@ -711,7 +763,7 @@ test("Cameroon phone numbers: every way of writing one number is the same client
   assert.equal(normalizePhone("123"), null);
 });
 
-test("demo shop, Cameroon edition (FCFA, French names): splits, months and payroll match the ledger", async () => {
+test("demo shop, Cameroon edition (FCFA, names shown in each phone's language): splits, months and payroll match the ledger", async () => {
   const store = await memoryStore();
   for (const d of DEFAULT_DEPARTMENTS) await upsert(store, "departments", { ...d, active: 1 }, 1);
   await upsert(store, "settings", { id: "currency", value: "XAF" }, 1);
@@ -720,7 +772,10 @@ test("demo shop, Cameroon edition (FCFA, French names): splits, months and payro
   for (const c of commands) await exec(store, owner, c.type, c.payload as never, c.at);
 
   const names = await store.all<{ name: string }>("SELECT name FROM services ORDER BY name");
-  assert.ok(names.some((n) => n.name === "Coupe") && names.some((n) => n.name === "Manucure gel"), "services named in French");
+  // Stored in English so each phone shows its own language; a French phone shows them in French.
+  assert.ok(names.some((n) => n.name === "Haircut") && names.some((n) => n.name === "Gel manicure"), "service names stored in English");
+  assert.equal(FR["Haircut"], "Coupe");
+  assert.equal(FR["Gel manicure"], "Manucure gel");
   const staff = await store.all<{ name: string }>("SELECT name FROM staff");
   assert.ok(staff.some((s) => s.name === "Brenda Ngono"), "Cameroonian staff names");
   const cut = await store.get<{ price: number }>("SELECT price FROM services WHERE id = 'demo-sv-cut'");

@@ -226,8 +226,8 @@ function SaleDetail({ id, onClose }: { id: string | null; onClose: () => void })
             {sale?.status === "voided" && (
               <div className="rounded-xl bg-negative-soft p-3 text-sm text-negative">
                 {data.voider
-                  ? t("Voided by {name}: {reason}", { name: data.voider, reason: sale.void_reason ?? "" })
-                  : t("Voided: {reason}", { reason: sale.void_reason ?? "" })}
+                  ? t("Voided by {name}: {reason}", { name: data.voider, reason: t(sale.void_reason ?? "") })
+                  : t("Voided: {reason}", { reason: t(sale.void_reason ?? "") })}
               </div>
             )}
             {can("payroll.view") && (

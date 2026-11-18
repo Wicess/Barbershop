@@ -80,7 +80,7 @@ export function AccessEditor() {
         <section className="px-4 py-3">
           <div className="flex items-start gap-3 text-sm text-ink-3">
             <Lock className="mt-0.5 size-4 shrink-0" />
-            <p>{t("Owners can do everything. Only owners can add people and change the shop's settings.")}</p>
+            <p>{t("Owners can do everything. Only owners change the shop's settings and who can do what.")}</p>
           </div>
         </section>
       </div>
@@ -103,9 +103,10 @@ export function AccessEditor() {
 }
 
 /** A role picker that says, in plain words, what each role will be able to do. */
-export function RolePicker({ value, onChange }: { value: Role; onChange: (r: Role) => void }) {
+export function RolePicker({ value, onChange, allowOwner = true }: { value: Role; onChange: (r: Role) => void; allowOwner?: boolean }) {
   const { settings } = useApp();
-  const roles: Role[] = ["cashier", "manager", "owner"];
+  // Only an owner can make someone an owner.
+  const roles: Role[] = allowOwner ? ["cashier", "manager", "owner"] : ["cashier", "manager"];
   return (
     <div role="radiogroup" aria-label={t("Role")} className="grid gap-2">
       {roles.map((r) => {

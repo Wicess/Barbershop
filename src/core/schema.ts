@@ -36,6 +36,17 @@ export const TABLES = {
     id: "TEXT", name: "TEXT", phone: "TEXT", specialty: "TEXT", commission_bp: "INTEGER",
     base_salary: "INTEGER", active: "INTEGER", joined_on: "TEXT", notes: "TEXT",
     created_at: "TEXT", updated_at: "TEXT",
+    /** Last day worked, when someone stops working here (null = still working). */
+    left_on: "TEXT",
+  },
+  /**
+   * Every change to someone's pay, with the day it takes effect. Salaries are
+   * worked out day by day from this history, so a raise or a cut never changes
+   * pay already earned (unless it was deliberately backdated).
+   */
+  pay_history: {
+    id: "TEXT", staff_id: "TEXT", effective_from: "TEXT", base_salary: "INTEGER", commission_bp: "INTEGER",
+    rates: "TEXT", note: "TEXT", created_by: "TEXT", created_at: "TEXT",
   },
   staff_rates: {
     id: "TEXT", staff_id: "TEXT", department_id: "TEXT", commission_bp: "INTEGER", updated_at: "TEXT",
@@ -63,6 +74,8 @@ export const TABLES = {
     id: "TEXT", category: "TEXT", department_id: "TEXT", amount: "INTEGER", description: "TEXT",
     paid_from: "TEXT", business_date: "TEXT", recurring_id: "TEXT", created_by: "TEXT",
     created_at: "TEXT", voided_at: "TEXT", voided_by: "TEXT", void_reason: "TEXT",
+    /** "pending" until a manager approves it ("approved"), or "rejected". Null on older records = approved. */
+    status: "TEXT", reviewed_by: "TEXT", reviewed_at: "TEXT", review_note: "TEXT",
   },
   recurring_expenses: {
     id: "TEXT", category: "TEXT", department_id: "TEXT", amount: "INTEGER", description: "TEXT",
@@ -130,6 +143,19 @@ export function schemaStatements(): string[] {
   const revIndexes = TABLE_NAMES.map((n) => `CREATE INDEX IF NOT EXISTS ix_${n}_rev ON ${n}(rev)`);
   return [...tables, ...INDEXES, ...revIndexes];
 }
+
+/**
+ * Columns added after a table was first created: ALTER statements for the ones
+ * an existing database doesn't have yet. `have` lists the table's current columns.
+ */
+export function missingColumnStatements(table: TableName, have: Set<string>): string[] {
+  return Object.entries(TABLES[table])
+    .filter(([col]) => !have.has(col))
+    .map(([col, type]) => `ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+}
+
+/** Only counts money that has actually left: approved (or older, pre-approval) expenses. */
+export const EXPENSE_APPROVED = "(status IS NULL OR status = 'approved')";
 
 export function columnsOf(table: TableName): string[] {
   return Object.keys(TABLES[table]);

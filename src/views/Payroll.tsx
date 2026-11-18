@@ -214,7 +214,7 @@ function StaffPaySheet({ row, month, onClose }: { row: PayrollRow | null; month:
                   <EntryRow
                     key={a.id}
                     label={t(ADJUSTMENT_LABEL[a.kind] ?? a.kind)}
-                    detail={`${formatDate(a.business_date)}${a.note ? ` · ${a.note}` : ""}`}
+                    detail={`${formatDate(a.business_date)}${a.note ? ` · ${t(a.note)}` : ""}`}
                     amount={a.kind === "bonus" ? a.amount : -a.amount}
                     voided={a.voided_at ? a.void_reason : null}
                     onVoid={(a.kind === "advance" ? can("staff.adjust") : can("staff.setPay")) ? () => setVoiding({ table: "adjustment", id: a.id }) : undefined}
@@ -224,7 +224,7 @@ function StaffPaySheet({ row, month, onClose }: { row: PayrollRow | null; month:
                   <EntryRow
                     key={p.id}
                     label={t("Paid ({method})", { method: t(PAYMENT_LABEL[p.method] ?? p.method) })}
-                    detail={`${formatDate(p.business_date)}${p.note ? ` · ${p.note}` : ""}`}
+                    detail={`${formatDate(p.business_date)}${p.note ? ` · ${t(p.note)}` : ""}`}
                     amount={p.amount}
                     voided={p.voided_at ? p.void_reason : null}
                     onVoid={can("payroll.pay") ? () => setVoiding({ table: "payout", id: p.id }) : undefined}

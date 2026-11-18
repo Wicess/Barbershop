@@ -11,6 +11,7 @@
 //   Always "vous". French punctuation: a space before : ; ? ! and inside « ».
 
 export const common: Record<string, string> = {
+  Team: "Équipe",
   Save: "Enregistrer",
   Saved: "Enregistré",
   Cancel: "Annuler",

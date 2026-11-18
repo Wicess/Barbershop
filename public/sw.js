@@ -2,7 +2,7 @@
 // engine) cached so the app opens with no internet. Data never goes through
 // this cache: it lives in the device's own database and syncs via /api/sync.
 
-const CACHE = "bms-shell-v5"; // v5: new Cameroon photos (v4: logo and app icons)
+const CACHE = "bms-shell-v6"; // v6: more Cameroon photos (v5: first photos, v4: logo and icons)
 // Service and section photos (~830 KB) — kept in step with ALL_PHOTOS in src/components/media.tsx.
 const PHOTOS = [
   "haircut", "lineup", "beard-trim", "beard-shave", "head-shave", "kids-cut", "barber-cut", "hair-wash", "salon",

@@ -25,6 +25,10 @@ interface ExpenseRow {
   voided_at: string | null;
   void_reason: string | null;
   created_by_name: string | null;
+  /** "pending" (waiting for a manager), "approved", "rejected"; null on older records = approved. */
+  status: string | null;
+  review_note: string | null;
+  reviewed_by_name: string | null;
 }
 
 interface Recurring {
@@ -46,16 +50,24 @@ export function ExpensesView({ params }: { params: URLSearchParams }) {
 
   const { data } = useQuery(async (db) => ({
     expenses: await db.all<ExpenseRow>(
-      `SELECT e.*, u.name AS created_by_name FROM expenses e LEFT JOIN users u ON u.id = e.created_by
+      `SELECT e.*, u.name AS created_by_name, r.name AS reviewed_by_name FROM expenses e
+         LEFT JOIN users u ON u.id = e.created_by LEFT JOIN users r ON r.id = e.reviewed_by
         WHERE e.business_date BETWEEN ? AND ? ORDER BY e.business_date DESC, e.created_at DESC`,
       [from, to],
+    ),
+    // Waiting for approval, whatever the month.
+    pending: await db.all<ExpenseRow>(
+      `SELECT e.*, u.name AS created_by_name, NULL AS reviewed_by_name FROM expenses e LEFT JOIN users u ON u.id = e.created_by
+        WHERE e.status = 'pending' AND e.voided_at IS NULL ORDER BY e.created_at`,
     ),
     fixed: await db.all<Recurring>("SELECT * FROM recurring_expenses ORDER BY active DESC, category"),
     depts: await db.all<{ id: string; name: string }>("SELECT id, name FROM departments WHERE active = 1 ORDER BY sort, name"),
     summary: can("reports.profit") ? await periodSummary(db, from, month === currentMonth() ? toBusinessDate() : to) : null,
   }), [from, to]);
 
-  const live = (data?.expenses ?? []).filter((e) => !e.voided_at);
+  // Only approved expenses are money that has left; pending and rejected ones never count.
+  const live = (data?.expenses ?? []).filter((e) => !e.voided_at && (e.status == null || e.status === "approved"));
+  const [rejecting, setRejecting] = useState<string | null>(null);
   const total = live.reduce((n, e) => n + e.amount, 0);
   const fromTill = live.filter((e) => e.paid_from === "till").reduce((n, e) => n + e.amount, 0);
   const deptName = (id: string | null) => {
@@ -125,7 +137,7 @@ export function ExpensesView({ params }: { params: URLSearchParams }) {
                 >
                   <Repeat className="size-4 shrink-0 text-ink-3" />
                   <div className="min-w-0 flex-1">
-                    <div className={cx("font-semibold", !f.active && "text-ink-3")}>{f.description || t(f.category)}</div>
+                    <div className={cx("font-semibold", !f.active && "text-ink-3")}>{t(f.description || f.category)}</div>
                     <div className="text-xs text-ink-3">{t(f.category)}{deptName(f.department_id) ? ` · ${deptName(f.department_id)}` : ""}{!f.active && ` · ${t("paused")}`}</div>
                   </div>
                   <Money value={f.amount} className="font-semibold" />
@@ -136,6 +148,30 @@ export function ExpensesView({ params }: { params: URLSearchParams }) {
           </div>
 
           <div className="xl:[&>div:first-child]:mt-0">
+          {can("expense.approve") && data.pending.length > 0 && (
+            <section className="mb-2">
+              <SectionTitle>{t("Waiting for your approval")} · {data.pending.length}</SectionTitle>
+              <Card className="divide-y divide-line ring-2 ring-warning/40">
+                {data.pending.map((e) => (
+                  <div key={e.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold">{t(e.description || e.category)}</div>
+                      <div className="text-xs text-ink-3">
+                        {formatDate(e.business_date, { day: "numeric", month: "short" })} · {t(e.category)}
+                        {e.paid_from === "till" ? ` · ${t("Cash drawer")}` : ""}
+                        {e.created_by_name ? ` · ${t("by {name}", { name: e.created_by_name })}` : ""}
+                      </div>
+                    </div>
+                    <Money value={e.amount} className="font-bold" />
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="secondary" onClick={() => setRejecting(e.id)}>{t("Reject")}</Button>
+                      <Button size="sm" onClick={() => run("expense.review", { id: e.id, approve: true }, t("Expense approved"))}>{t("Approve")}</Button>
+                    </div>
+                  </div>
+                ))}
+              </Card>
+            </section>
+          )}
           <SectionTitle action={expenses.length > 1 && <SortButton count={sort.rules.length} onClick={() => setSorting(true)} />}>{t("All expenses")}</SectionTitle>
           <SortSheet open={sorting} onClose={() => setSorting(false)} keys={EXPENSE_SORT} rules={sort.rules} onChange={sort.setRules} onReset={sort.reset} />
           {expenses.length > 1 && <SortSummary keys={EXPENSE_SORT} rules={sort.rules} onOpen={() => setSorting(true)} />}
@@ -146,18 +182,22 @@ export function ExpensesView({ params }: { params: URLSearchParams }) {
               {expenses.map((e) => (
                 <div key={e.id} className="flex items-center gap-3 px-4 py-3 lg:py-2">
                   <div className="min-w-0 flex-1">
-                    <div className={cx("font-semibold", e.voided_at && "text-ink-3 line-through")}>{e.description || t(e.category)}</div>
+                    <div className={cx("font-semibold", e.voided_at && "text-ink-3 line-through")}>{t(e.description || e.category)}</div>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-3">
                       <span>{formatDate(e.business_date, { day: "numeric", month: "short" })}</span>
                       <span>· {t(e.category)}</span>
                       {deptName(e.department_id) && <Badge tone="accent">{deptName(e.department_id)}</Badge>}
                       {e.paid_from === "till" && <Badge>{t("Cash drawer")}</Badge>}
                       {e.recurring_id && <Badge>{t("Fixed")}</Badge>}
-                      {e.voided_at && <span className="text-negative">{t("Voided: {reason}", { reason: e.void_reason ?? "" })}</span>}
+                      {e.voided_at && <span className="text-negative">{t("Voided: {reason}", { reason: t(e.void_reason ?? "") })}</span>}
+                      {!e.voided_at && e.status === "pending" && <Badge tone="warning">{t("Waiting for approval")}</Badge>}
+                      {!e.voided_at && e.status === "rejected" && (
+                        <span className="text-negative">{t("Rejected: {reason}", { reason: e.review_note ?? "" })}{e.reviewed_by_name ? ` · ${e.reviewed_by_name}` : ""}</span>
+                      )}
                     </div>
                   </div>
-                  <Money value={e.amount} className={cx("font-semibold", e.voided_at && "text-ink-3 line-through")} />
-                  {can("expense.void") && !e.voided_at && (
+                  <Money value={e.amount} className={cx("font-semibold", (e.voided_at || e.status === "rejected") && "text-ink-3 line-through", e.status === "pending" && "text-ink-3")} />
+                  {can("expense.void") && !e.voided_at && e.status !== "rejected" && (
                     <button onClick={() => setVoiding(e.id)} className="min-h-11 cursor-pointer px-1 text-xs font-semibold text-negative">{t("Void")}</button>
                   )}
                 </div>
@@ -167,6 +207,12 @@ export function ExpensesView({ params }: { params: URLSearchParams }) {
           </div>
           </div>
 
+          <VoidSheet
+            open={rejecting !== null}
+            onClose={() => setRejecting(null)}
+            title={t("Reject this expense")}
+            onConfirm={(reason) => run("expense.review", { id: rejecting!, approve: false, note: reason }, t("Expense rejected"))}
+          />
           <ExpenseSheet open={adding} depts={data.depts} onClose={() => { setAdding(false); setParams({ add: null }); }} />
           {editingFixed && <FixedSheet fixed={editingFixed === "new" ? null : editingFixed} depts={data.depts} onClose={() => setEditingFixed(null)} />}
           <VoidSheet
@@ -182,7 +228,8 @@ export function ExpensesView({ params }: { params: URLSearchParams }) {
 }
 
 function ExpenseSheet({ open, depts, onClose }: { open: boolean; depts: { id: string; name: string }[]; onClose: () => void }) {
-  const { run } = useApp();
+  const { run, can } = useApp();
+  const needsApproval = !can("expense.approve");
   const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[3]);
   const [amount, setAmount] = useState<number | null>(null);
   const [description, setDescription] = useState("");
@@ -212,7 +259,7 @@ function ExpenseSheet({ open, depts, onClose }: { open: boolean; depts: { id: st
             const ok = await run("expense.create", {
               id: crypto.randomUUID(), category, amount: amount!, description, department_id: dept || null,
               paid_from: paidFrom, business_date: date,
-            }, t("Expense recorded"));
+            }, needsApproval ? t("Sent to the manager for approval") : t("Expense recorded"));
             setBusy(false);
             if (ok) onClose();
           }}
@@ -221,6 +268,11 @@ function ExpenseSheet({ open, depts, onClose }: { open: boolean; depts: { id: st
         </Button>
       }
     >
+      {needsApproval && (
+        <p className="mb-4 rounded-2xl bg-warning-soft p-3 text-sm text-warning">
+          {t("A manager approves it before the money counts as spent.")}
+        </p>
+      )}
       <div className="space-y-4">
         <Field label={t("Amount")} htmlFor="ea"><MoneyInput id="ea" value={amount} onChange={setAmount} autoFocus /></Field>
         <Field label={t("Category")} htmlFor="ec" hint={category === "Salaries & wages" ? t("Staff with a monthly salary on their profile are already counted. Only add other wages here.") : category === "Spoilage & breakage" ? t("For spoiled drinks, use Price list & stock → Spoiled instead, so stock stays right.") : undefined}>

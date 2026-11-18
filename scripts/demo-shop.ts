@@ -15,7 +15,7 @@ import { hashPin, newSalt } from "../src/core/pin.ts";
 const base = (process.argv.find((a) => a.startsWith("http")) ?? "http://localhost:3200").replace(/\/$/, "");
 const cameroon = process.argv.includes("--cameroon");
 const shop = cameroon
-  ? { shopName: "Salon Élégance Douala", ownerName: "Christian Kamga", currency: "XAF", lang: "fr" }
+  ? { shopName: "Kamga Studio", ownerName: "Christian Kamga", currency: "XAF", lang: "fr" }
   : { shopName: "Kings Cut Studio", ownerName: "Brian Otieno", currency: "KES", lang: "en" };
 const PIN = "1234";
 // Two more people who sign in, to try the access controls (Settings → Who can do what).

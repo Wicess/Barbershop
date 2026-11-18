@@ -2,7 +2,7 @@ import "server-only";
 import { createClient, type Client, type InArgs, type Transaction } from "@libsql/client";
 import { mkdirSync } from "node:fs";
 import type { Db, Store } from "@/core/db.ts";
-import { schemaStatements } from "@/core/schema.ts";
+import { TABLE_NAMES, missingColumnStatements, schemaStatements } from "@/core/schema.ts";
 
 type Executor = Client | Transaction;
 
@@ -61,6 +61,11 @@ async function init(): Promise<Store> {
     ],
     "write",
   );
+  // Columns added in later versions: add any this database doesn't have yet.
+  for (const t of TABLE_NAMES) {
+    const have = new Set((await client.execute(`PRAGMA table_info(${t})`)).rows.map((r) => String(r.name)));
+    for (const sql of missingColumnStatements(t, have)) await client.execute(sql);
+  }
   // The data generation: a new one is made when the shop is restored from a
   // backup, which tells every device to download everything again.
   await client.execute({ sql: "INSERT OR IGNORE INTO meta (key, value) VALUES ('epoch', ?)", args: [crypto.randomUUID()] });

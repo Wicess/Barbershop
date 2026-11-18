@@ -5,27 +5,36 @@ import { registerDevice } from "@/server/devices.ts";
 
 export const dynamic = "force-dynamic";
 
-/** Connect a new phone, tablet or PC to the shop. Any active user's PIN unlocks it. */
+/**
+ * Connect a new phone, tablet or PC to the shop. The person picks their role
+ * (owner, manager or cashier) and types their PIN; the PIN tells us who they are.
+ */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const userId = String(body.userId ?? "");
+  const role = String(body.role ?? "");
   const pin = String(body.pin ?? "");
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  const key = `${ip}:${userId}`;
+  const key = `${ip}:${role}`;
   if (tooManyAttempts(key)) {
     return Response.json({ error: "Too many wrong PINs. Wait 5 minutes and try again." }, { status: 429 });
   }
 
   const db = await serverDb();
-  const user = await db.get<{ id: string; pin_hash: string; pin_salt: string }>(
-    "SELECT id, pin_hash, pin_salt FROM users WHERE id = ? AND active = 1",
-    [userId],
+  const candidates = await db.all<{ id: string; pin_hash: string; pin_salt: string }>(
+    "SELECT id, pin_hash, pin_salt FROM users WHERE role = ? AND active = 1",
+    [role],
   );
-  const ok = !!user && (await verifyPin(pin, user.pin_salt, user.pin_hash));
-  recordAttempt(key, ok);
-  if (!ok) return Response.json({ error: "Wrong PIN." }, { status: 401 });
+  let userId: string | null = null;
+  for (const u of candidates) {
+    if (await verifyPin(pin, u.pin_salt, u.pin_hash)) {
+      userId = u.id;
+      break;
+    }
+  }
+  recordAttempt(key, !!userId);
+  if (!userId) return Response.json({ error: "Wrong PIN." }, { status: 401 });
 
   const device = await db.tx((tx) => registerDevice(tx, String(body.deviceName ?? "Shop device"), userId));
   await issueDeviceToken(device.id);
-  return Response.json({ deviceId: device.id, deviceCode: device.code });
+  return Response.json({ deviceId: device.id, deviceCode: device.code, userId });
 }

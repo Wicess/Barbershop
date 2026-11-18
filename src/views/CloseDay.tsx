@@ -170,7 +170,7 @@ function CloseResult({
             ))}
           </div>
         )}
-        {close.note && !auto && <p className="mt-3 rounded-xl bg-surface-2 p-3 text-sm">{close.note}</p>}
+        {close.note && !auto && <p className="mt-3 rounded-xl bg-surface-2 p-3 text-sm">{t(close.note)}</p>}
       </Card>
       <div className="mt-3 flex gap-2 lg:col-start-1 lg:row-start-2">
         <Button variant="secondary" className="flex-1" onClick={() => printContent(<ClosePrint close={close} figures={figures} settings={settings} />)}>

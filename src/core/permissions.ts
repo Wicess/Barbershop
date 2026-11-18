@@ -17,6 +17,7 @@ export type Permission =
   | "expense.view"
   | "expense.create"
   | "expense.void"
+  | "expense.approve"
   | "catalog.manage"
   | "stock.manage"
   | "staff.view"
@@ -33,12 +34,13 @@ export type Permission =
 
 const MANAGER: Permission[] = [
   "sale.create", "sale.editPrice", "sale.discount", "sale.void", "sales.viewAll",
-  "cash.close", "cash.reclose", "expense.view", "expense.create", "expense.void",
+  "cash.close", "cash.reclose", "expense.view", "expense.create", "expense.void", "expense.approve",
   "catalog.manage", "stock.manage", "staff.view", "staff.manage", "staff.adjust",
-  "payroll.view", "reports.daily", "reports.profit",
+  "payroll.view", "reports.daily", "reports.profit", "users.manage",
 ];
 
-const CASHIER: Permission[] = ["sale.create", "cash.close"];
+/** Cashiers sell, close the day, and record expenses (which then wait for a manager's approval). */
+const CASHIER: Permission[] = ["sale.create", "cash.close", "expense.view", "expense.create"];
 
 export interface RoleOptions {
   /** Owner setting (older shops): may cashiers change a service price at the till? */
@@ -47,8 +49,8 @@ export interface RoleOptions {
   roleAccess?: string;
 }
 
-/** Only owners can add people, set their access, or change the shop's settings. */
-export const OWNER_ONLY: Permission[] = ["users.manage", "settings.manage"];
+/** Only owners change the shop's settings, including who can do what. */
+export const OWNER_ONLY: Permission[] = ["settings.manage"];
 
 /** The recommended starting point for each role. */
 export const DEFAULT_ACCESS: Record<"manager" | "cashier", Permission[]> = { manager: MANAGER, cashier: CASHIER };
@@ -60,6 +62,7 @@ export const REQUIRES: Partial<Record<Permission, Permission[]>> = {
   "cash.reclose": ["cash.close"],
   "expense.create": ["expense.view"],
   "expense.void": ["expense.view"],
+  "expense.approve": ["expense.view"],
   "staff.manage": ["staff.view"],
   "staff.setPay": ["staff.view"],
   "staff.adjust": ["staff.view"],
@@ -88,13 +91,14 @@ export const ACCESS_GROUPS: { title: string; items: { perm: Permission; label: s
       { perm: "expense.view", label: "See expenses" },
       { perm: "expense.create", label: "Record expenses" },
       { perm: "expense.void", label: "Cancel expenses" },
+      { perm: "expense.approve", label: "Approve expenses", hint: "An expense recorded by someone without this waits for approval before it counts." },
     ],
   },
   {
     title: "Staff and pay",
     items: [
       { perm: "staff.view", label: "See staff" },
-      { perm: "staff.manage", label: "Add and edit staff" },
+      { perm: "staff.manage", label: "Hire, edit and let staff go", hint: "Their past work and pay always stay as recorded." },
       { perm: "staff.setPay", label: "Set staff pay", hint: "Their share of each service and their salary." },
       { perm: "staff.adjust", label: "Record advances, bonuses and deductions" },
       { perm: "payroll.view", label: "See what staff are owed" },
@@ -109,6 +113,12 @@ export const ACCESS_GROUPS: { title: string; items: { perm: Permission; label: s
       { perm: "reports.daily", label: "See reports", hint: "Takings by day, section and staff." },
       { perm: "reports.profit", label: "See profit", hint: "Profit, month-end and money in & out." },
       { perm: "audit.view", label: "See the activity log" },
+    ],
+  },
+  {
+    title: "People who sign in",
+    items: [
+      { perm: "users.manage", label: "Add people and turn accounts off", hint: "As many as needed. Owners' accounts can only be changed by an owner." },
     ],
   },
 ];

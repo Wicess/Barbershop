@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { Plus, UserRound } from "lucide-react";
 import { useApp, useQuery } from "@/client/app-context.tsx";
 import { go, setParams } from "@/client/router.ts";
-import { currentMonth } from "@/core/dates.ts";
+import { currentMonth, formatDate, toBusinessDate } from "@/core/dates.ts";
 import { bpToPercent, percentToBp } from "@/core/money.ts";
 import { plural, t, tk } from "@/core/i18n.ts";
 import { payroll } from "@/core/reports.ts";
 import {
-  Badge, Button, Card, Empty, Field, Input, Money, MoneyInput, PageHeader, SectionTitle, Sheet, Spinner, Textarea, Toggle, cx,
+  Badge, Button, Card, DateInput, Empty, Field, Input, Money, MoneyInput, PageHeader, SectionTitle, Sheet, Spinner, Textarea, Toggle, cx,
 } from "@/components/ui.tsx";
 import { SortButton, SortSheet, SortSummary, sortRows, useSortRules, type SortKey } from "@/components/sort.tsx";
 import { Avatar } from "./Boot.tsx";
@@ -23,6 +23,7 @@ interface StaffRow {
   base_salary: number;
   active: number;
   joined_on: string | null;
+  left_on: string | null;
   notes: string | null;
 }
 
@@ -98,7 +99,7 @@ export function StaffView({ params }: { params: URLSearchParams }) {
                         {!s.active && <Badge>{t("Inactive")}</Badge>}
                       </span>
                       <span className="block truncate text-xs text-ink-3">
-                        {s.specialty ?? t("Staff")}
+                        {t(s.specialty ?? "Staff")}
                         {overrides.length > 0 && ` · ${plural(overrides.length, "{n} section rate", "{n} section rates")}`}
                         {s.base_salary > 0 && ` · ${t("salaried")}`}
                       </span>
@@ -181,6 +182,19 @@ function StaffEditor({
   const { can, run, settings } = useApp();
   const canPay = can("staff.setPay");
   const canEdit = can("staff.manage");
+  const today = toBusinessDate();
+  // Every pay change, newest first: what was agreed, from which day, by whom.
+  const { data: history } = useQuery(
+    async (db) =>
+      staff
+        ? db.all<{ id: string; effective_from: string; base_salary: number; commission_bp: number; note: string | null; by: string | null }>(
+            `SELECT h.id, h.effective_from, h.base_salary, h.commission_bp, h.note, u.name AS by FROM pay_history h
+               LEFT JOIN users u ON u.id = h.created_by WHERE h.staff_id = ? ORDER BY h.effective_from DESC, h.created_at DESC`,
+            [staff.id],
+          )
+        : [],
+    [staff?.id],
+  );
   const [name, setName] = useState(staff?.name ?? "");
   const [phone, setPhone] = useState(staff?.phone ?? "");
   const [specialty, setSpecialty] = useState(staff?.specialty ?? t("Barber"));
@@ -189,6 +203,11 @@ function StaffEditor({
   const [active, setActive] = useState(staff ? !!staff.active : true);
   const [notes, setNotes] = useState(staff?.notes ?? "");
   const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [original, setOriginal] = useState<Record<string, string>>({});
+  const [effective, setEffective] = useState(today);
+  const [payNote, setPayNote] = useState("");
+  const [joinedOn, setJoinedOn] = useState(staff?.joined_on ?? today);
+  const [leftOn, setLeftOn] = useState(staff?.left_on ?? today);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -196,8 +215,19 @@ function StaffEditor({
     const o: Record<string, string> = {};
     for (const r of rates) if (r.commission_bp != null) o[r.department_id] = bpToPercent(r.commission_bp).replace("%", "");
     setOverrides(o);
+    setOriginal(o);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staff?.id]);
+
+  // Has the agreed pay changed? Then ask from which day it applies.
+  const payChanged =
+    !!staff &&
+    canPay &&
+    (percentToBp(share) !== staff.commission_bp ||
+      (salary ?? 0) !== (staff.base_salary ?? 0) ||
+      depts.some((d) => (overrides[d.id] ?? "").trim() !== (original[d.id] ?? "").trim()));
+  const leaving = !!staff && !!staff.active && !active;
+  const returning = !!staff && !staff.active && active;
 
   const save = async () => {
     setError(null);
@@ -221,9 +251,13 @@ function StaffEditor({
           commission_bp: bp,
           base_salary: salary ?? 0,
           active: active ? 1 : 0,
-          joined_on: staff?.joined_on,
+          joined_on: !staff || returning ? joinedOn : staff.joined_on,
+          left_on: active ? null : leftOn,
         },
         rates: canPay ? rateRows : undefined,
+        effective_from: payChanged ? effective : undefined,
+        pay_note: payChanged ? payNote : undefined,
+        today,
       },
       staff ? t("Saved") : t("{name} added", { name: name.trim() }),
     );
@@ -296,13 +330,76 @@ function StaffEditor({
               <MoneyInput id="sal" value={salary} onChange={setSalary} disabled={!canPay} />
             </Field>
           </div>
+          {payChanged && (
+            <div className="mt-4 rounded-2xl bg-accent-soft p-3.5">
+              <Field
+                label={t("The new pay takes effect from")}
+                htmlFor="eff"
+                hint={
+                  effective < today
+                    ? t("Backdated: their services from this day are recalculated with the new share.")
+                    : t("Work before this day keeps the old pay. Choose an earlier day to apply it backwards.")
+                }
+              >
+                <DateInput id="eff" value={effective} max={today} onChange={setEffective} />
+              </Field>
+              <div className="mt-3">
+                <Field label={t("Reason (optional)")} htmlFor="pnote">
+                  <Input id="pnote" value={payNote} onChange={(e) => setPayNote(e.target.value)} placeholder={t("e.g. renegotiated after 6 months")} />
+                </Field>
+              </div>
+            </div>
+          )}
+          {history && history.length > 0 && (
+            <details className="mt-4">
+              <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-accent">{t("Pay history")} · {history.length}</summary>
+              <ol className="mt-1 space-y-2 border-l border-line pl-4">
+                {history.map((h) => (
+                  <li key={h.id} className="text-sm">
+                    <span className="font-semibold">
+                      {h.effective_from <= "0001-01-01" ? t("From the start") : t("From {date}", { date: formatDate(h.effective_from) })}
+                    </span>
+                    <span className="text-ink-2"> · {t("share {share}", { share: bpToPercent(h.commission_bp) })}</span>
+                    {Number(h.base_salary) > 0 && <span className="text-ink-2"> · {t("salary")} <Money value={Number(h.base_salary)} /></span>}
+                    {(h.note || h.by) && <div className="text-xs text-ink-3">{[h.note, h.by && t("by {name}", { name: h.by })].filter(Boolean).join(" · ")}</div>}
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
         </div>
 
         <Field label={t("Notes")} htmlFor="notes">
           <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} disabled={!canEdit} />
         </Field>
+        {!staff && canEdit && (
+          <Field label={t("Starts working on")} htmlFor="joined">
+            <DateInput id="joined" value={joinedOn} onChange={setJoinedOn} />
+          </Field>
+        )}
         {staff && canEdit && (
-          <Toggle checked={active} onChange={setActive} label={t("Active")} description={t("Inactive staff can't be picked for new sales. Their history stays.")} />
+          <div className="rounded-2xl border border-line p-4">
+            <Toggle
+              checked={active}
+              onChange={setActive}
+              label={t("Works here")}
+              description={
+                staff.active
+                  ? t("Turn off when someone stops working here. Their sales, pay and history stay exactly as recorded.")
+                  : t("Stopped on {date}. Turn on to take them back.", { date: staff.left_on ? formatDate(staff.left_on) : "—" })
+              }
+            />
+            {leaving && (
+              <Field label={t("Last day worked")} htmlFor="left" hint={t("Salary is paid up to this day. They can't be picked for new sales after.")}>
+                <DateInput id="left" value={leftOn} min={staff.joined_on ?? undefined} max={today} onChange={setLeftOn} />
+              </Field>
+            )}
+            {returning && (
+              <Field label={t("Starts again on")} htmlFor="back">
+                <DateInput id="back" value={joinedOn > (staff.left_on ?? "") ? joinedOn : today} min={staff.left_on ?? undefined} onChange={setJoinedOn} />
+              </Field>
+            )}
+          </div>
         )}
         {error && <p className="text-sm text-negative" role="alert">{error}</p>}
       </div>

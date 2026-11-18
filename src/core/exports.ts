@@ -98,16 +98,18 @@ export async function buildExport(
     }
     case "expenses": {
       const rows = await db.all<Record<string, never>>(
-        `SELECT e.business_date, e.category, d.name AS dept, e.description, e.amount, e.paid_from, u.name AS by, e.voided_at, e.void_reason
+        `SELECT e.business_date, e.category, d.name AS dept, e.description, e.amount, e.paid_from, u.name AS by, e.voided_at, e.void_reason, e.status, e.review_note
            FROM expenses e LEFT JOIN departments d ON d.id = e.department_id LEFT JOIN users u ON u.id = e.created_by
           WHERE e.business_date BETWEEN ? AND ? ORDER BY e.business_date, e.created_at`,
         [from, to],
       );
       return toCsv(
-        [t("Date"), t("Category"), t("Section"), t("Description"), t("Amount"), t("Paid from"), t("Recorded by"), t("Voided"), t("Void reason")],
+        [t("Date"), t("Category"), t("Section"), t("Description"), t("Amount"), t("Paid from"), t("Recorded by"), t("Approval"), t("Voided"), t("Void reason")],
         rows.map((r: Record<string, never>) => [
           r.business_date, r.category ? t(r.category) : r.category, r.dept ?? t("Whole shop"), r.description, m(r.amount),
-          r.paid_from === "till" ? t("Cash drawer") : t("Elsewhere"), r.by, r.voided_at ? t("yes") : "", r.void_reason,
+          r.paid_from === "till" ? t("Cash drawer") : t("Elsewhere"), r.by,
+          r.status === "pending" ? t("Waiting for approval") : r.status === "rejected" ? `${t("Rejected")}${r.review_note ? ` (${r.review_note})` : ""}` : t("Approved"),
+          r.voided_at ? t("yes") : "", r.void_reason,
         ]),
       );
     }

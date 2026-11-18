@@ -22,9 +22,17 @@ const AUDIT_TEMPLATES = [
   tk("Voided expense: {reason}"),
   tk("Voided pay adjustment: {reason}"),
   tk("Voided staff payment: {reason}"),
+  tk("Expense waiting for approval: {category}, {amount}"),
+  tk("Approved expense: {category}, {amount}"),
+  tk("Rejected expense: {category}, {amount} ({reason})"),
   tk("Expense: {category}"),
   tk("Fixed monthly cost: {category}"),
   tk("Posted {n} fixed cost(s) for {month}"),
+  tk("Pay changed for {name} from {date}: share {share}, salary {salary} ({n} earlier services recalculated)"),
+  tk("Pay changed for {name} from {date}: share {share}, salary {salary}"),
+  tk("Hired: {name}, from {date}"),
+  tk("Ended work: {name}, last day {date}"),
+  tk("Rehired: {name}, from {date}"),
   tk("Added staff: {name}"),
   tk("Updated staff: {name}"),
   tk("Advance recorded"),
@@ -75,12 +83,13 @@ function summaryText(summary: string): string {
     if (!m) continue;
     const vars: Record<string, string> = Object.fromEntries(names.map((n, i) => [n, m[i + 1]]));
     if (vars.role) vars.role = t(ROLE_NAMES[vars.role] ?? vars.role);
+    if (vars.category) vars.category = t(vars.category);
     return t(key, vars);
   }
   return tMessage(summary);
 }
 
-const RISKY = ["sale.void", "sale.priceChange", "sales.void", "expenses.void", "staff_adjustments.void", "payouts.void", "day.close", "stock.move", "payout.create", "adjustment.create"];
+const RISKY = ["expense.review", "sale.void", "sale.priceChange", "sales.void", "expenses.void", "staff_adjustments.void", "payouts.void", "day.close", "stock.move", "payout.create", "adjustment.create"];
 const SETUP = ["service.upsert", "product.upsert", "department.upsert", "staff.upsert", "user.upsert", "settings.update", "device.register", "device.revoke", "recurring.upsert"];
 
 export function ActivityView() {

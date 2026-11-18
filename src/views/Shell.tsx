@@ -1,9 +1,9 @@
 "use client";
 
 import {
-  BarChart3, Boxes, CalendarCheck, ClipboardList, Cloud, CloudOff, Home, Lock, Menu, ReceiptText,
-  RefreshCw, Settings as SettingsIcon, HandCoins, Contact, DatabaseBackup, ArrowLeftRight, ShoppingBag, Users, Wallet, Banknote, AlertTriangle,
-  CalendarRange,
+  AlertTriangle, ArrowRightLeft, Banknote, BookUser, CalendarRange, ChartColumnBig, Cloud, CloudOff, HandCoins,
+  HardDriveDownload, History, LayoutDashboard, Lock, Menu, ReceiptText, RefreshCw, Scissors, Settings2,
+  ShoppingBag, Tags, UserRoundCog, Vault, WalletCards,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, type ComponentType } from "react";
 import { haptic, PullToRefresh, setBackTarget, useCollapsedTitle } from "@/components/native.tsx";
@@ -20,6 +20,7 @@ import { MotifDivider } from "@/components/motif.tsx";
 import { t } from "@/core/i18n.ts";
 import { Avatar } from "./Boot.tsx";
 import { HomeView } from "./Home.tsx";
+import { PeopleView } from "./People.tsx";
 import { SellView } from "./Sell.tsx";
 import { SalesView } from "./Sales.tsx";
 import { ReportsView } from "./Reports.tsx";
@@ -41,28 +42,37 @@ import { SyncView } from "./SyncView.tsx";
 export interface NavItem {
   path: string;
   label: string;
-  icon: ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string; strokeWidth?: number }>;
   perm?: Permission;
   description?: string;
 }
 
 export const NAV: NavItem[] = [
-  { path: "/", label: "Home", icon: Home, perm: "reports.daily" },
+  { path: "/", label: "Home", icon: LayoutDashboard, perm: "reports.daily" },
   { path: "/sell", label: "Sell", icon: ShoppingBag, perm: "sale.create", description: "Record a service or drink" },
   { path: "/sales", label: "Sales", icon: ReceiptText, description: "Receipts, voids and reprints" },
-  { path: "/reports", label: "Reports", icon: BarChart3, perm: "reports.daily", description: "Profit & loss by section, staff, payment" },
+  { path: "/reports", label: "Reports", icon: ChartColumnBig, perm: "reports.daily", description: "Profit & loss by section, staff, payment" },
   { path: "/earnings", label: "Earnings", icon: HandCoins, perm: "payroll.view", description: "What each employee has made, live" },
-  { path: "/money", label: "Money in & out", icon: ArrowLeftRight, perm: "reports.profit", description: "Every payment in and every franc out" },
-  { path: "/payroll", label: "Staff pay", icon: Wallet, perm: "payroll.view", description: "Monthly earnings, advances, payments" },
-  { path: "/clients", label: "Clients", icon: Contact, perm: "reports.daily", description: "Regulars, visit history, who hasn't been back" },
-  { path: "/staff", label: "Staff", icon: Users, perm: "staff.view", description: "Barbers, nail techs and their share" },
+  { path: "/money", label: "Money in & out", icon: ArrowRightLeft, perm: "reports.profit", description: "Every payment in and every franc out" },
+  { path: "/payroll", label: "Staff pay", icon: WalletCards, perm: "payroll.view", description: "Monthly earnings, advances, payments" },
+  { path: "/clients", label: "Clients", icon: BookUser, perm: "reports.daily", description: "Regulars, visit history, who hasn't been back" },
+  { path: "/staff", label: "Staff", icon: Scissors, perm: "staff.view", description: "Barbers, nail techs and their share" },
   { path: "/expenses", label: "Expenses", icon: Banknote, perm: "expense.view", description: "Rent, supplies, breakages, fixed costs" },
-  { path: "/catalog", label: "Price list & stock", icon: Boxes, perm: "catalog.manage", description: "Services, drinks, sections, stock" },
-  { path: "/close", label: "Close day", icon: CalendarCheck, perm: "cash.close", description: "Count the cash drawer" },
+  { path: "/catalog", label: "Price list & stock", icon: Tags, perm: "catalog.manage", description: "Services, drinks, sections, stock" },
+  { path: "/close", label: "Close day", icon: Vault, perm: "cash.close", description: "Count the cash drawer" },
   { path: "/months", label: "Month-end", icon: CalendarRange, perm: "reports.profit", description: "Each month closed and stored: results and staff pay" },
-  { path: "/backup", label: "Backup & export", icon: DatabaseBackup, perm: "reports.profit", description: "Spreadsheets and a full backup file" },
-  { path: "/activity", label: "Activity log", icon: ClipboardList, perm: "audit.view", description: "Who did what, and when" },
-  { path: "/settings", label: "Settings", icon: SettingsIcon, perm: "settings.manage", description: "Shop details, users, devices, receipts" },
+  { path: "/backup", label: "Backup & export", icon: HardDriveDownload, perm: "reports.profit", description: "Spreadsheets and a full backup file" },
+  { path: "/activity", label: "Activity log", icon: History, perm: "audit.view", description: "Who did what, and when" },
+  { path: "/people", label: "People", icon: UserRoundCog, perm: "users.manage", description: "Who signs in, their role, accounts on or off" },
+  { path: "/settings", label: "Settings", icon: Settings2, perm: "settings.manage", description: "Shop details, who can do what, devices, receipts" },
+];
+
+/** The sidebar's groups, in the order a shop works through its day. Home sits above them. */
+const SIDE_GROUPS: { title: string; paths: string[] }[] = [
+  { title: "Selling", paths: ["/sell", "/sales", "/clients", "/close"] },
+  { title: "Money", paths: ["/reports", "/money", "/expenses", "/months", "/backup"] },
+  { title: "Team", paths: ["/staff", "/earnings", "/payroll", "/people"] },
+  { title: "Shop", paths: ["/catalog", "/activity", "/settings"] },
 ];
 
 const BOTTOM: Record<string, string[]> = {
@@ -227,6 +237,7 @@ export function Shell() {
       case "/close": return <CloseDayView params={route.params} />;
       case "/months": return <MonthsView params={route.params} />;
       case "/settings": return <SettingsView />;
+      case "/people": return <PeopleView />;
       case "/activity": return <ActivityView />;
       case "/more": return <MoreView items={allowed} />;
       case "/sync": return <SyncView />;
@@ -235,6 +246,8 @@ export function Shell() {
   })();
 
   const sideNav = allowed.filter((n) => n.path !== "/" || homePath === "/");
+  const homeItem = sideNav.find((n) => n.path === "/");
+  const sideGroups = SIDE_GROUPS.map((g) => ({ title: g.title, items: sideNav.filter((n) => g.paths.includes(n.path)) })).filter((g) => g.items.length);
 
   return (
     <div className="min-h-dvh lg:flex">
@@ -253,25 +266,21 @@ export function Shell() {
         </div>
         {/* The brass emblem rule under the shop name (hidden on short windows so the menu still fits). */}
         <MotifDivider className="mx-3 mb-3 shrink-0 [@media(max-height:760px)]:hidden" />
-        {/* Every item stays visible: rows shrink with the window's height (between 30 and 44px) instead of scrolling out of sight. */}
+        {/* Every item stays visible: rows shrink with the window's height instead of scrolling out of sight.
+            Group titles take their own room (--nav-g of them) and are dropped on short windows. */}
         <nav
-          className="nav-scroll -mr-2 flex-1 overflow-y-auto pr-2"
-          style={{ "--nav-n": sideNav.length } as React.CSSProperties}
+          className="nav-scroll -mr-2 flex-1 overflow-y-auto pr-2 [--nav-g:var(--groups)] [@media(max-height:760px)]:[--nav-g:0]"
+          style={{ "--nav-n": sideNav.length, "--groups": sideGroups.length } as React.CSSProperties}
           aria-label={t("Main menu")}
         >
-          {sideNav.map((n) => (
-            <a
-              key={n.path}
-              href={`#${n.path}`}
-              aria-current={path === n.path ? "page" : undefined}
-              className={cx(
-                "flex h-[clamp(24px,calc((100dvh-17.6rem)/var(--nav-n)),44px)] [@media(max-height:680px)]:h-[clamp(22px,calc((100dvh-13.5rem)/var(--nav-n)),44px)] items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.98] [@media(max-height:760px)]:text-[13px]",
-                path === n.path ? "bg-surface-2 text-ink ring-1 ring-line" : "text-ink-2 hover:bg-surface-2 hover:text-ink",
-              )}
-            >
-              <n.icon className={cx("size-5 shrink-0 [@media(max-height:760px)]:size-[18px]", path === n.path && "text-primary")} />
-              <span className="truncate">{t(n.label)}</span>
-            </a>
+          {homeItem && <SideLink item={homeItem} active={path === "/"} />}
+          {sideGroups.map((g) => (
+            <div key={g.title} role="group" aria-label={t(g.title)}>
+              <p className="mb-0.5 mt-2.5 h-4 px-3 text-[10px] font-semibold uppercase leading-4 tracking-[0.16em] text-ink-3 [@media(max-height:760px)]:hidden">
+                {t(g.title)}
+              </p>
+              {g.items.map((n) => <SideLink key={n.path} item={n} active={path === n.path} />)}
+            </div>
           ))}
         </nav>
         <UserBox />
@@ -396,26 +405,50 @@ function TopBar() {
   );
 }
 
+/** One menu row: the icon sits in a small tile that fills with copper on the page you're on. */
+function SideLink({ item, active }: { item: NavItem; active: boolean }) {
+  const Icon = item.icon;
+  return (
+    <a
+      href={`#${item.path}`}
+      aria-current={active ? "page" : undefined}
+      className={cx(
+        "group flex h-[clamp(26px,calc((100dvh-15rem-var(--nav-g)*1.5rem)/var(--nav-n)),40px)] items-center gap-2.5 rounded-xl px-2 text-[13.5px] font-medium transition-[background-color,color] duration-200",
+        active ? "bg-surface-2 font-semibold text-ink ring-1 ring-line" : "text-ink-2 hover:bg-surface-2/70 hover:text-ink",
+      )}
+    >
+      <span
+        className={cx(
+          "flex size-6 shrink-0 items-center justify-center rounded-lg transition-[background-color,color,transform] duration-200 group-hover:scale-105 [@media(max-height:680px)]:size-5",
+          active ? "bg-primary text-on-primary shadow-[var(--shadow-primary)]" : "bg-surface-2 text-ink-3 ring-1 ring-line group-hover:text-primary",
+        )}
+      >
+        <Icon className="size-[15px] [@media(max-height:680px)]:size-3.5" strokeWidth={active ? 2.2 : 1.9} />
+      </span>
+      <span className="truncate">{t(item.label)}</span>
+    </a>
+  );
+}
+
 function UserBox() {
   const { user, lock } = useApp();
   return (
-    <div className="mt-3 border-t border-line pt-3">
-      <SyncBadge wide />
-      <div className="mt-2 flex items-center gap-3 px-2">
-        <Avatar name={user.name} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{user.name}</p>
-          <p className="text-xs text-ink-3">{t(ROLE_LABEL[user.role])}</p>
-        </div>
-        <button onClick={lock} aria-label={t("Lock screen")} className="flex size-11 cursor-pointer items-center justify-center rounded-xl text-ink-2 hover:bg-surface-2">
-          <Lock className="size-5" />
-        </button>
+    <div className="mt-3 flex items-center gap-2.5 rounded-2xl bg-surface-2/70 p-2 ring-1 ring-line">
+      <Avatar name={user.name} small />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-semibold leading-tight">{user.name}</p>
+        <p className="flex items-center gap-1.5 text-[11px] text-ink-3">
+          <span className="truncate">{t(ROLE_LABEL[user.role])}</span> <span aria-hidden>·</span> <SyncBadge tiny />
+        </p>
       </div>
+      <button onClick={lock} aria-label={t("Lock screen")} title={t("Lock screen")} className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-xl text-ink-2 transition-colors hover:bg-surface hover:text-ink">
+        <Lock className="size-4" />
+      </button>
     </div>
   );
 }
 
-export function SyncBadge({ wide, compact }: { wide?: boolean; compact?: boolean }) {
+export function SyncBadge({ wide, compact, tiny }: { wide?: boolean; compact?: boolean; tiny?: boolean }) {
   const { sync } = useApp();
   const problem = sync.rejected > 0 || sync.status === "error";
   const Icon = problem ? AlertTriangle : sync.status === "offline" ? CloudOff : sync.status === "syncing" ? RefreshCw : Cloud;
@@ -426,6 +459,19 @@ export function SyncBadge({ wide, compact }: { wide?: boolean; compact?: boolean
       : sync.status === "syncing"
         ? t("Syncing…")
         : sync.pending ? t("{n} waiting", { n: sync.pending }) : t("Saved");
+  if (tiny) {
+    // Inline, inside a line of small text (the sidebar's user card).
+    return (
+      <button
+        onClick={() => go("/sync")}
+        aria-label={t("Sync status: {label}", { label })}
+        className={cx("inline-flex cursor-pointer items-center gap-1 rounded hover:text-ink", problem ? "text-negative" : sync.status === "offline" ? "text-warning" : "text-ink-3")}
+      >
+        <Icon className={cx("size-3", sync.status === "syncing" && "animate-spin")} />
+        <span className="truncate">{label}</span>
+      </button>
+    );
+  }
   return (
     <button
       onClick={() => go("/sync")}

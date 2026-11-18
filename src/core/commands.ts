@@ -132,9 +132,19 @@ export interface Payloads {
   "sale.void": VoidPayload;
   "expense.create": Row;
   "expense.void": VoidPayload;
+  "expense.review": { id: string; approve: boolean; note?: string };
   "recurring.upsert": Row;
   "recurring.post": { month: string };
-  "staff.upsert": { staff: Row; rates?: { department_id: string; commission_bp: number | null }[] };
+  "staff.upsert": {
+    staff: Row;
+    rates?: { department_id: string; commission_bp: number | null }[];
+    /** Day a pay change takes effect (today by default; earlier = backdated). */
+    effective_from?: string;
+    /** Why the pay changed (kept in the pay history). */
+    pay_note?: string;
+    /** The device's own date, so "today" follows the shop's clock. */
+    today?: string;
+  };
   "adjustment.create": Row;
   "adjustment.void": VoidPayload;
   "payout.create": Row;
@@ -240,6 +250,42 @@ type Handler<K extends CommandType> = (ctx: Ctx, payload: Payloads[K], settings:
 
 /** The note stored on a day the app closed by itself (shown translated on screen). */
 export const AUTO_CLOSE_NOTE = "Closed automatically at 11:59 pm. The cash was not counted.";
+
+/** Work out a month's results from the records and store them (closing it, or recalculating it). */
+async function storeMonthClose(ctx: Ctx, month: string, n = 0) {
+  const id = `month-${month}`;
+  const existing = await getRow(ctx, "month_closes", id);
+  const f = await monthFigures(ctx.db, month);
+  await put(ctx, "month_closes", {
+    id,
+    month: f.month,
+    from_date: f.from,
+    to_date: f.to,
+    days: f.days,
+    sales: f.sales,
+    revenue: f.revenue,
+    staff_share: f.staffShare,
+    tips: f.tips,
+    salaries: f.salaries,
+    bonuses: f.bonuses,
+    deductions: f.deductions,
+    expenses: f.expenses,
+    net_profit: f.netProfit,
+    staff_pay: f.staffPay,
+    snapshot: JSON.stringify(f.snapshot),
+    closes: Number(existing?.closes ?? 0) + 1,
+    closed_by: ctx.actor.id,
+    closed_at: ctx.cmd.at,
+  });
+  await audit(
+    ctx,
+    "month.close",
+    "month_closes",
+    id,
+    `${existing ? "Recalculated" : "Closed"} ${month} (${f.days} days): revenue ${f.revenue}, net profit ${f.netProfit}, staff pay ${f.staffPay}`,
+    n,
+  );
+}
 
 const handlers: { [K in CommandType]: Handler<K> } = {
   async "sale.create"(ctx, p, settings) {
@@ -396,6 +442,10 @@ const handlers: { [K in CommandType]: Handler<K> } = {
     check(isInt(p.amount) && Number(p.amount) > 0, "Enter an amount.");
     check(text(p.category), "Choose a category.");
     check(isDate(p.business_date), "Choose a date.");
+    // Money leaving the business needs a manager's (or owner's) approval. Someone who
+    // can approve records it already approved; anyone else's waits as "pending" and
+    // doesn't count anywhere (cash, profit, reports) until it's approved.
+    const approver = can(ctx.actor.role, "expense.approve", roleOptions(ctx.settings));
     await put(ctx, "expenses", {
       ...p,
       description: text(p.description) || null,
@@ -405,8 +455,40 @@ const handlers: { [K in CommandType]: Handler<K> } = {
       voided_at: null,
       voided_by: null,
       void_reason: null,
+      status: approver ? "approved" : "pending",
+      reviewed_by: approver ? ctx.actor.id : null,
+      reviewed_at: approver ? ctx.cmd.at : null,
+      review_note: null,
     });
-    await audit(ctx, "expense.create", "expenses", String(p.id), `Expense: ${text(p.category)}`);
+    await audit(
+      ctx,
+      "expense.create",
+      "expenses",
+      String(p.id),
+      approver ? `Expense: ${text(p.category)}` : `Expense waiting for approval: ${text(p.category)}, ${p.amount}`,
+    );
+  },
+
+  /** A manager or owner approves (it now counts) or rejects (it never will) a pending expense. */
+  async "expense.review"(ctx, p) {
+    need(ctx, "expense.approve");
+    const e = await getRow(ctx, "expenses", p.id);
+    check(e, "Record not found.");
+    check(e.status === "pending" && !e.voided_at, "This expense was already reviewed.");
+    if (!p.approve) check(text(p.note).length >= 3, "Give a reason (at least 3 characters).");
+    await patch(ctx, "expenses", String(p.id), {
+      status: p.approve ? "approved" : "rejected",
+      reviewed_by: ctx.actor.id,
+      reviewed_at: ctx.cmd.at,
+      review_note: text(p.note) || null,
+    });
+    await audit(
+      ctx,
+      "expense.review",
+      "expenses",
+      String(p.id),
+      p.approve ? `Approved expense: ${e.category}, ${e.amount}` : `Rejected expense: ${e.category}, ${e.amount} (${text(p.note)})`,
+    );
   },
 
   async "expense.void"(ctx, p) {
@@ -449,12 +531,23 @@ const handlers: { [K in CommandType]: Handler<K> } = {
         recurring_id: r.id,
         created_by: ctx.actor.id,
         created_at: ctx.cmd.at,
+        // Fixed costs were agreed when they were set up.
+        status: "approved",
       });
       n++;
     }
     if (n > 0) await audit(ctx, "recurring.post", "expenses", p.month, `Posted ${n} fixed cost(s) for ${p.month}`);
   },
 
+  /**
+   * Add or edit a staff member. Pay changes are kept in pay_history with the day
+   * they take effect: past sales keep the share they were recorded with, and
+   * salaries are worked out day by day from that history, so a raise never
+   * rewrites pay already earned. Backdating a change (effective_from in the past)
+   * deliberately recalculates that staff member's services from that day, and any
+   * month already closed in that span is recalculated too. Letting someone go
+   * records their last day; their history stays exactly as it was.
+   */
   async "staff.upsert"(ctx, p, settings) {
     need(ctx, "staff.manage");
     const s = p.staff;
@@ -462,6 +555,7 @@ const handlers: { [K in CommandType]: Handler<K> } = {
     check(text(s.name), "Enter a name.");
     const existing = await getRow(ctx, "staff", s.id);
     const canPay = can(ctx.actor.role, "staff.setPay", roleOptions(ctx.settings));
+    const today = isDate(p.today) ? String(p.today) : ctx.cmd.at.slice(0, 10);
     let commission = Number(s.commission_bp);
     let salary = Number(s.base_salary ?? 0);
     if (!canPay) {
@@ -470,6 +564,31 @@ const handlers: { [K in CommandType]: Handler<K> } = {
     }
     check(isInt(commission) && commission >= 0 && commission <= 10000, "Share must be between 0% and 100%.");
     check(isInt(salary) && salary >= 0, "Invalid salary.");
+
+    // Hiring, letting go, and taking someone back.
+    const active = s.active === 0 || s.active === false ? 0 : 1;
+    let joinedOn = isDate(s.joined_on) ? String(s.joined_on) : String(existing?.joined_on ?? today);
+    let leftOn: string | null = (existing?.left_on as string | null) ?? null;
+    if (!active && (existing?.active ?? 1)) leftOn = isDate(s.left_on) ? String(s.left_on) : today;
+    if (!active && isDate(s.left_on)) leftOn = String(s.left_on);
+    if (active && existing && !existing.active) {
+      // Back again: a new period of work starts (the earlier one stays in the records).
+      joinedOn = isDate(s.joined_on) && String(s.joined_on) > String(existing.left_on ?? "") ? String(s.joined_on) : today;
+      leftOn = null;
+    }
+    if (leftOn) check(leftOn >= joinedOn, "The last day can't be before they started.");
+
+    // Did the pay change, and from when?
+    const oldRates = existing ? await ctx.db.all<{ department_id: string; commission_bp: number | null }>("SELECT department_id, commission_bp FROM staff_rates WHERE staff_id = ?", [s.id]) : [];
+    const newRates = canPay && Array.isArray(p.rates) ? p.rates : null;
+    const rateOf = (list: { department_id: string; commission_bp: number | null }[], d: string) => list.find((r) => r.department_id === d)?.commission_bp ?? null;
+    const ratesChanged = !!newRates && newRates.some((r) => (r.commission_bp ?? null) !== rateOf(oldRates, r.department_id));
+    const shareChanged = !!existing && (commission !== Number(existing.commission_bp) || ratesChanged);
+    const salaryChanged = !!existing && salary !== Number(existing.base_salary ?? 0);
+    // A new person's starting pay applies from the beginning (their working days are limited by joined_on anyway).
+    const effective = existing ? (isDate(p.effective_from) ? String(p.effective_from) : today) : "0000-01-01";
+    if (shareChanged || salaryChanged) check(effective <= addDays(today, 1), "Choose today or an earlier day.");
+
     await put(ctx, "staff", {
       id: s.id,
       name: text(s.name),
@@ -477,14 +596,15 @@ const handlers: { [K in CommandType]: Handler<K> } = {
       specialty: text(s.specialty) || null,
       commission_bp: commission,
       base_salary: salary,
-      active: s.active === 0 || s.active === false ? 0 : 1,
-      joined_on: isDate(s.joined_on) ? s.joined_on : existing?.joined_on ?? ctx.cmd.at.slice(0, 10),
+      active,
+      joined_on: joinedOn,
+      left_on: active ? null : leftOn,
       notes: text(s.notes) || null,
       created_at: existing?.created_at ?? ctx.cmd.at,
       updated_at: ctx.cmd.at,
     });
-    if (canPay && Array.isArray(p.rates)) {
-      for (const r of p.rates) {
+    if (newRates) {
+      for (const r of newRates) {
         const bp = r.commission_bp;
         check(bp == null || (isInt(bp) && bp >= 0 && bp <= 10000), "Share must be between 0% and 100%.");
         await put(ctx, "staff_rates", {
@@ -496,8 +616,54 @@ const handlers: { [K in CommandType]: Handler<K> } = {
         });
       }
     }
-    const what = existing ? "Updated" : "Added";
-    await audit(ctx, "staff.upsert", "staff", String(s.id), `${what} staff: ${text(s.name)}`);
+
+    let n = 0;
+    if (!existing || shareChanged || salaryChanged) {
+      // Keep what they earned before tracking began, so it's never rewritten.
+      if (existing && !(await ctx.db.get("SELECT 1 AS x FROM pay_history WHERE staff_id = ?", [s.id]))) {
+        await put(ctx, "pay_history", {
+          // Dated at the very beginning, so it always comes before any later (or backdated) change.
+          id: `${s.id}:start`, staff_id: s.id, effective_from: "0000-01-01",
+          base_salary: Number(existing.base_salary ?? 0), commission_bp: Number(existing.commission_bp),
+          rates: JSON.stringify(oldRates), note: null, created_by: ctx.actor.id, created_at: ctx.cmd.at,
+        });
+      }
+      await put(ctx, "pay_history", {
+        id: `${ctx.cmd.id}:pay`, staff_id: s.id, effective_from: effective, base_salary: salary, commission_bp: commission,
+        rates: JSON.stringify(newRates ?? oldRates), note: text(p.pay_note) || null, created_by: ctx.actor.id, created_at: ctx.cmd.at,
+      });
+    }
+
+    // Backdated share change: their services from that day use the new share.
+    let recalculated = 0;
+    if (shareChanged && effective < today) {
+      const lines = await ctx.db.all<{ id: string; department_id: string; line_total: number; commission_bp: number }>(
+        `SELECT l.id, l.department_id, l.line_total, l.commission_bp FROM sale_lines l JOIN sales sa ON sa.id = l.sale_id
+          WHERE l.staff_id = ? AND l.kind = 'service' AND sa.business_date >= ?`,
+        [s.id, effective],
+      );
+      for (const l of lines) {
+        const bp = await staffRate(ctx.db, String(s.id), l.department_id);
+        if (bp === Number(l.commission_bp)) continue;
+        await patch(ctx, "sale_lines", l.id, { commission_bp: bp, commission: share(Number(l.line_total), bp) });
+        recalculated++;
+      }
+    }
+    // A backdated change reaching into a month already closed: recalculate that month.
+    if ((shareChanged || salaryChanged) && effective < today) {
+      const closed = await ctx.db.all<{ month: string }>("SELECT month FROM month_closes WHERE month >= ? ORDER BY month", [monthOf(effective)]);
+      for (const c of closed) await storeMonthClose(ctx, c.month, ++n);
+    }
+
+    const name = text(s.name);
+    let summary = existing ? `Updated staff: ${name}` : `Hired: ${name}, from ${joinedOn}`;
+    if (existing && !active && existing.active) summary = `Ended work: ${name}, last day ${leftOn}`;
+    else if (existing && active && !existing.active) summary = `Rehired: ${name}, from ${joinedOn}`;
+    else if (shareChanged || salaryChanged) {
+      summary = `Pay changed for ${name} from ${effective}: share ${commission}, salary ${salary}`;
+      if (recalculated) summary += ` (${recalculated} earlier services recalculated)`;
+    }
+    await audit(ctx, "staff.upsert", "staff", String(s.id), summary, ++n);
   },
 
   async "adjustment.create"(ctx, p) {
@@ -697,6 +863,12 @@ const handlers: { [K in CommandType]: Handler<K> } = {
     check(["owner", "manager", "cashier"].includes(String(p.role)), "Choose a role.");
     const existing = await getRow(ctx, "users", p.id);
     const active = p.active === 0 || p.active === false ? 0 : 1;
+    if (ctx.actor.role !== "owner") {
+      // Managers may add people and turn accounts off, but owners stay in an owner's hands,
+      // and nobody raises their own power.
+      check(p.role !== "owner" && existing?.role !== "owner", "Only an owner can add or change an owner.");
+      if (p.id === ctx.actor.id) check(p.role === ctx.actor.role && active === 1, "You can't change your own role or turn off your own account.");
+    }
     if (existing?.role === "owner" && (p.role !== "owner" || !active)) {
       const owners = await ctx.db.all("SELECT id FROM users WHERE role = 'owner' AND active = 1 AND id != ?", [p.id]);
       check(owners.length > 0, "The shop needs at least one active owner.");
@@ -730,37 +902,7 @@ const handlers: { [K in CommandType]: Handler<K> } = {
     check(isMonth(p.month), "Invalid month.");
     // Only finished months; one day of grace so a device a few hours ahead of UTC can close on the 1st.
     check(p.month < monthOf(addDays(ctx.cmd.at.slice(0, 10), 1)), "This month hasn't ended yet.");
-    const id = `month-${p.month}`;
-    const existing = await getRow(ctx, "month_closes", id);
-    const f = await monthFigures(ctx.db, p.month);
-    await put(ctx, "month_closes", {
-      id,
-      month: f.month,
-      from_date: f.from,
-      to_date: f.to,
-      days: f.days,
-      sales: f.sales,
-      revenue: f.revenue,
-      staff_share: f.staffShare,
-      tips: f.tips,
-      salaries: f.salaries,
-      bonuses: f.bonuses,
-      deductions: f.deductions,
-      expenses: f.expenses,
-      net_profit: f.netProfit,
-      staff_pay: f.staffPay,
-      snapshot: JSON.stringify(f.snapshot),
-      closes: Number(existing?.closes ?? 0) + 1,
-      closed_by: ctx.actor.id,
-      closed_at: ctx.cmd.at,
-    });
-    await audit(
-      ctx,
-      "month.close",
-      "month_closes",
-      id,
-      `${existing ? "Recalculated" : "Closed"} ${p.month} (${f.days} days): revenue ${f.revenue}, net profit ${f.netProfit}, staff pay ${f.staffPay}`,
-    );
+    await storeMonthClose(ctx, p.month);
   },
 
   async "settings.update"(ctx, p) {

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Smartphone } from "lucide-react";
+import { ChevronRight, Smartphone, UserCog } from "lucide-react";
+import { go } from "@/client/router.ts";
 import { useApp, useQuery } from "@/client/app-context.tsx";
 import { formatDateTime } from "@/core/dates.ts";
 import { t } from "@/core/i18n.ts";
@@ -21,14 +22,12 @@ export function SettingsView() {
   const [form, setForm] = useState(settings);
   const [share, setShare] = useState(bpToPercent(settings.default_commission_bp).replace("%", ""));
   const [busy, setBusy] = useState(false);
-  const [editingUser, setEditingUser] = useState<UserRow | "new" | null>(null);
   useEffect(() => {
     setForm(settings);
     setShare(bpToPercent(settings.default_commission_bp).replace("%", ""));
   }, [settings]);
 
   const { data } = useQuery(async (db) => ({
-    users: await db.all<UserRow>("SELECT id, name, role, active FROM users ORDER BY active DESC, CASE role WHEN 'owner' THEN 0 WHEN 'manager' THEN 1 ELSE 2 END, name"),
     devices: await db.all<{ id: string; code: string; name: string; created_at: string; revoked_at: string | null; by: string | null }>(
       "SELECT d.*, u.name AS by FROM devices d LEFT JOIN users u ON u.id = d.registered_by ORDER BY d.created_at",
     ),
@@ -98,24 +97,14 @@ export function SettingsView() {
         </div>
 
         <div className="lg:col-start-2 lg:row-start-2">
-          <SectionTitle action={<button className="min-h-11 cursor-pointer text-sm font-semibold text-accent" onClick={() => setEditingUser("new")}><Plus className="inline size-4" /> {t("Add user")}</button>}>
-            {t("People who can sign in")}
-          </SectionTitle>
-          {!data ? <Spinner /> : (
-            <Card className="divide-y divide-line">
-              {data.users.map((u) => (
-                <button key={u.id} onClick={() => setEditingUser(u)} className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left hover:bg-surface-2">
-                  <Avatar name={u.name} />
-                  <div className="flex-1">
-                    <div className="font-semibold">{u.name}</div>
-                    <div className="text-xs text-ink-3">{t(ROLE_LABEL[u.role])}</div>
-                  </div>
-                  {!u.active && <Badge>{t("Disabled")}</Badge>}
-                </button>
-              ))}
-            </Card>
-          )}
-
+          <button onClick={() => go("/people")} className="press lift mt-3 flex w-full cursor-pointer items-center gap-3 rounded-3xl bg-surface p-4 text-left shadow-card ring-1 ring-line/70">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-accent"><UserCog className="size-5" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold">{t("People who sign in")}</span>
+              <span className="block text-xs text-ink-3">{t("Add people, choose their role, turn accounts off.")}</span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-ink-3" />
+          </button>
           <SectionTitle>{t("Who can do what")}</SectionTitle>
           <AccessEditor />
         </div>
@@ -149,20 +138,20 @@ export function SettingsView() {
         </div>
       </div>
 
-      {editingUser && <UserSheet user={editingUser === "new" ? null : editingUser} onClose={() => setEditingUser(null)} />}
     </div>
   );
 }
 
-interface UserRow {
+export interface UserRow {
   id: string;
   name: string;
   role: Role;
   active: number;
 }
 
-function UserSheet({ user, onClose }: { user: UserRow | null; onClose: () => void }) {
-  const { run } = useApp();
+export function UserSheet({ user, onClose }: { user: UserRow | null; onClose: () => void }) {
+  const { run, user: me } = useApp();
+  const isOwner = me.role === "owner";
   const [name, setName] = useState(user?.name ?? "");
   const [role, setRole] = useState<Role>(user?.role ?? "cashier");
   const [pin, setPin] = useState("");
@@ -191,12 +180,14 @@ function UserSheet({ user, onClose }: { user: UserRow | null; onClose: () => voi
       <div className="space-y-4">
         <Field label={t("Name")} htmlFor="un"><Input id="un" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" /></Field>
         <Field label={t("Role")}>
-          <RolePicker value={role} onChange={setRole} />
+          <RolePicker value={role} onChange={setRole} allowOwner={isOwner} />
         </Field>
         <Field label={user ? t("New PIN (leave blank to keep)") : t("PIN")} htmlFor="up" hint={t("4–6 digits. They use it to sign in on any shop device.")}>
           <Input id="up" type="password" inputMode="numeric" autoComplete="new-password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))} />
         </Field>
-        {user && <Toggle checked={active} onChange={setActive} label={t("Can sign in")} description={t("Disable instead of deleting, so their history stays.")} />}
+        {user && user.id !== me.id && (
+          <Toggle checked={active} onChange={setActive} label={t("Can sign in")} description={t("Turn off when someone stops working here. Their history stays, and you can turn it back on.")} />
+        )}
         {error && <p className="text-sm text-negative" role="alert">{error}</p>}
       </div>
     </Sheet>

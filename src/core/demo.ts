@@ -11,7 +11,6 @@
 import type { CommandType, Payloads, SaleLineInput } from "./commands.ts";
 import { addDays, addMonths, daysInMonth, monthOf } from "./dates.ts";
 import { share } from "./money.ts";
-import { FR } from "../i18n/fr/index.ts";
 
 /** Regular clients (name and phone), so the client book shows real repeat visits. */
 const CLIENTS_CM: [string, string][] = [
@@ -119,7 +118,9 @@ export function demoShop(
   const cm = opts.edition === "cameroon";
   const conv = (minor: number) => (cm ? (minor / 100) * 3 : minor);
   const M = (n: number) => conv(KES(n));
-  const label = (english: string) => (cm ? (FR[english] ?? english) : english);
+  // Stored in English in both editions: each phone shows them in its own language
+  // (a French phone translates "Haircut" to "Coupe"), so the English side never shows French.
+  const label = (english: string) => english;
   const staffName = (id: string, name: string) => (cm ? (CM_NAMES[id] ?? name) : name);
   const r = rng(seed);
   const pick = <T,>(xs: readonly T[]) => xs[Math.floor(r() * xs.length)];

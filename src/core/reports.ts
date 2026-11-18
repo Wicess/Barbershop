@@ -3,7 +3,8 @@
 // typed in as a total, so the numbers always agree with the history.
 
 import type { Db } from "./db.ts";
-import { addMonths, dayCount, daysInMonth, monthOf, monthRange } from "./dates.ts";
+import { EXPENSE_APPROVED } from "./schema.ts";
+import { addDays, addMonths, dayCount, daysInMonth, monthOf, monthRange } from "./dates.ts";
 
 const COMPLETED = "s.status = 'completed'";
 
@@ -59,7 +60,7 @@ export async function periodSummary(db: Db, from: string, to: string): Promise<P
   );
   const expenses = await db.all<{ department_id: string | null; category: string; amount: number }>(
     `SELECT department_id, category, SUM(amount) AS amount FROM expenses
-      WHERE voided_at IS NULL AND business_date BETWEEN ? AND ?
+      WHERE voided_at IS NULL AND ${EXPENSE_APPROVED} AND business_date BETWEEN ? AND ?
       GROUP BY department_id, category`,
     [from, to],
   );
@@ -162,22 +163,56 @@ export async function tipsByStaff(db: Db, from: string, to: string): Promise<Map
   return new Map(rows.map((r) => [r.staff_id, Number(r.v)]));
 }
 
-/** Monthly base salaries, prorated by the days of each month that fall inside the period. */
-export async function proratedSalaries(db: Db, from: string, to: string): Promise<number> {
-  const staff = await db.all<{ base_salary: number; joined_on: string | null; active: number }>(
-    "SELECT base_salary, joined_on, active FROM staff WHERE base_salary > 0 AND active = 1",
+interface PayStaff { id: string; base_salary: number; joined_on: string | null; left_on: string | null }
+type SalaryHistory = Map<string, { from: string; salary: number }[]>;
+
+/** Every recorded salary change, oldest first, per staff member. */
+async function salaryHistory(db: Db): Promise<SalaryHistory> {
+  const rows = await db.all<{ staff_id: string; effective_from: string; base_salary: number; created_at: string }>(
+    "SELECT staff_id, effective_from, base_salary, created_at FROM pay_history ORDER BY effective_from, created_at",
   );
-  if (staff.length === 0) return 0;
+  const out: SalaryHistory = new Map();
+  for (const r of rows) {
+    const list = out.get(r.staff_id) ?? [];
+    list.push({ from: r.effective_from, salary: Number(r.base_salary ?? 0) });
+    out.set(r.staff_id, list);
+  }
+  return out;
+}
+
+/**
+ * Salary earned between two dates: day by day, each month's salary divided by
+ * that month's real number of days, using the salary in effect on each day and
+ * counting only days the person worked here (from joining to their last day).
+ * So a raise from the 15th, or someone leaving on the 10th, is paid exactly.
+ */
+export function salaryBetween(s: PayStaff, history: SalaryHistory, from: string, to: string): number {
+  const changes = history.get(s.id) ?? [];
+  const salaryOn = (d: string) => {
+    let current: number | null = null;
+    for (const c of changes) if (c.from <= d) current = c.salary;
+    return current ?? Number(s.base_salary ?? 0);
+  };
   let total = 0;
   for (let month = monthOf(from); month <= monthOf(to); month = addMonths(month, 1)) {
     const range = monthRange(month);
-    for (const s of staff) {
-      const start = [range.from, from, s.joined_on ?? range.from].sort().at(-1)!;
-      const end = [range.to, to].sort()[0];
-      if (start > end) continue;
-      total += Math.round((Number(s.base_salary) * dayCount(start, end)) / daysInMonth(month));
-    }
+    const start = [range.from, from, s.joined_on ?? range.from].sort().at(-1)!;
+    const end = [range.to, to, s.left_on ?? range.to].sort()[0];
+    if (start > end) continue;
+    let sum = 0;
+    for (let d = start; d <= end; d = addDays(d, 1)) sum += salaryOn(d);
+    total += Math.round(sum / daysInMonth(month));
   }
+  return total;
+}
+
+/** All salaries for a period (staff who have left still count for the days they worked). */
+export async function proratedSalaries(db: Db, from: string, to: string): Promise<number> {
+  const staff = await db.all<PayStaff>("SELECT id, base_salary, joined_on, left_on FROM staff");
+  if (staff.length === 0) return 0;
+  const history = await salaryHistory(db);
+  let total = 0;
+  for (const s of staff) total += salaryBetween(s, history, from, to);
   return total;
 }
 
@@ -260,8 +295,9 @@ export async function payroll(db: Db, month: string): Promise<PayrollRow[]> {
   const { from, to } = monthRange(month);
   const staff = await db.all<{
     id: string; name: string; specialty: string | null; commission_bp: number; base_salary: number;
-    active: number; joined_on: string | null;
-  }>("SELECT id, name, specialty, commission_bp, base_salary, active, joined_on FROM staff ORDER BY name");
+    active: number; joined_on: string | null; left_on: string | null;
+  }>("SELECT id, name, specialty, commission_bp, base_salary, active, joined_on, left_on FROM staff ORDER BY name");
+  const history = await salaryHistory(db);
 
   const work = await db.all<{
     staff_id: string; department: string; services: number; clients: number; revenue: number; earned: number;
@@ -296,10 +332,10 @@ export async function payroll(db: Db, month: string): Promise<PayrollRow[]> {
     const mine = work.filter((w) => w.staff_id === s.id);
     const adj = (kind: string) => Number(adjustments.find((a) => a.staff_id === s.id && a.kind === kind)?.amount ?? 0);
     const paid = Number(payouts.find((p) => p.staff_id === s.id)?.amount ?? 0);
-    const joinedAfterMonth = s.joined_on && s.joined_on > to;
-    const baseSalary = s.active && !joinedAfterMonth ? Number(s.base_salary ?? 0) : 0;
+    // Salary for the days they actually worked this month, at the rate in effect each day.
+    const baseSalary = salaryBetween(s, history, from, to);
     const tips = tipMap.get(s.id) ?? 0;
-    if (!s.active && mine.length === 0 && paid === 0 && tips === 0) continue;
+    if (!s.active && mine.length === 0 && paid === 0 && tips === 0 && baseSalary === 0) continue;
 
     const revenue = mine.reduce((n, w) => n + Number(w.revenue), 0);
     const earned = mine.reduce((n, w) => n + Number(w.earned), 0);
@@ -412,7 +448,7 @@ export async function cashFigures(db: Db, date: string): Promise<CashFigures> {
   const cashSales = Number(pay.find((p) => p.method === "cash")?.amount ?? 0);
   const one = async (sql: string) => Number((await db.get<{ v: number }>(sql, [date]))?.v ?? 0);
   const tillExpenses = await one(
-    "SELECT COALESCE(SUM(amount), 0) AS v FROM expenses WHERE voided_at IS NULL AND paid_from = 'till' AND business_date = ?",
+    `SELECT COALESCE(SUM(amount), 0) AS v FROM expenses WHERE voided_at IS NULL AND ${EXPENSE_APPROVED} AND paid_from = 'till' AND business_date = ?`,
   );
   const tillAdvances = await one(
     "SELECT COALESCE(SUM(amount), 0) AS v FROM staff_adjustments WHERE voided_at IS NULL AND paid_from = 'till' AND kind = 'advance' AND business_date = ?",
@@ -665,7 +701,7 @@ export async function cashbook(db: Db, from: string, to: string, localDate: (iso
   const expenses = await db.all<{ id: string; category: string; description: string | null; amount: number; paid_from: string; business_date: string; created_at: string; by: string | null; dept: string | null }>(
     `SELECT e.id, e.category, e.description, e.amount, e.paid_from, e.business_date, e.created_at, u.name AS by, d.name AS dept
        FROM expenses e LEFT JOIN users u ON u.id = e.created_by LEFT JOIN departments d ON d.id = e.department_id
-      WHERE e.voided_at IS NULL AND e.business_date BETWEEN ? AND ?`,
+      WHERE e.voided_at IS NULL AND (e.status IS NULL OR e.status = 'approved') AND e.business_date BETWEEN ? AND ?`,
     [from, to],
   );
   for (const e of expenses) {

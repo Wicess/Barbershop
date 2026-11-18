@@ -1,7 +1,6 @@
 import { upsert } from "@/core/db.ts";
 import { hashPin, isValidPin, newSalt } from "@/core/pin.ts";
 import { DEFAULT_DEPARTMENTS } from "@/core/seed.ts";
-import { FR } from "@/i18n/fr/index.ts";
 import { DEFAULT_SETTINGS, serializeSetting } from "@/core/settings.ts";
 import { issueDeviceToken } from "@/server/auth.ts";
 import { nextRev, serverDb } from "@/server/db.ts";
@@ -38,7 +37,8 @@ export async function POST(req: Request) {
       }
       // A shop set up in French gets its sections named in French ("Coiffure", "Boissons"…).
       for (const d of DEFAULT_DEPARTMENTS) {
-        const name = lang === "fr" ? (FR[d.name] ?? d.name) : d.name;
+        // English names in the data; each phone shows them in its own language.
+        const name = d.name;
         await upsert(tx, "departments", { ...d, name, active: 1, created_at: now, updated_at: now }, rev);
       }
       const ownerId = crypto.randomUUID();
